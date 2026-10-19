@@ -20,6 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -57,6 +59,9 @@ fun MiniMap(from: LatLon, to: LatLon, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .height(MAP_HEIGHT_DP.dp)
+            .semantics {
+                contentDescription = "Map showing your position and the place, ${formatDistance(distance)} apart"
+            }
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {

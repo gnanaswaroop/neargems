@@ -14,6 +14,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Arrangement
@@ -361,7 +364,7 @@ private fun SuggestionCard(
             // Cut to three lines until tapped, so the map and the buttons stay on one screen. Tap to expand.
             maxLines = if (expanded) Int.MAX_VALUE else 3,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.clickable { expanded = !expanded },
+            modifier = Modifier.semantics { role = Role.Button }.clickable { expanded = !expanded },
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
         )
         if (poi.snippet.length > SNIPPET_FOLD_CHARS) {
@@ -369,7 +372,7 @@ private fun SuggestionCard(
                 if (expanded) "Show less" else "Read more",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable { expanded = !expanded },
+                modifier = Modifier.semantics { role = Role.Button }.clickable { expanded = !expanded },
             )
         }
         DistanceDetails(ranked, from, heading)
@@ -397,19 +400,19 @@ private fun ActionBar(poi: Poi, actions: Actions) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             Button(
                 onClick = actions.onSpeak,
-                modifier = Modifier.weight(1.6f).heightIn(min = 52.dp),
+                modifier = Modifier.weight(1.6f).heightIn(min = 48.dp),
                 shape = RoundedCornerShape(50),
             ) { Text("Read aloud") }
             OutlinedButton(
                 onClick = actions.onNext,
-                modifier = Modifier.weight(1f).heightIn(min = 52.dp),
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                 shape = RoundedCornerShape(50),
             ) { Text("Next") }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { actions.onOpenMap(poi) }, modifier = Modifier.heightIn(min = 44.dp)) { Text("Map") }
+            TextButton(onClick = { actions.onOpenMap(poi) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Map") }
             poi.link?.let { link ->
-                TextButton(onClick = { actions.onOpenUrl(link) }, modifier = Modifier.heightIn(min = 44.dp)) {
+                TextButton(onClick = { actions.onOpenUrl(link) }, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("Article")
                 }
             }
@@ -670,7 +673,7 @@ private fun SectionTitle(text: String) {
         style = MaterialTheme.typography.titleMedium,
         fontFamily = displayFont(),
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(top = 8.dp),
+        modifier = Modifier.padding(top = 8.dp).semantics { heading() },
     )
 }
 
