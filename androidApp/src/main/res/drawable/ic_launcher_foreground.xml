@@ -1,13 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nearwise mark: a map pin whose centre holds a north-pointing arrow (direction) and a sound arc
+  on its right (read aloud). Drawn inside the 72 dp safe zone of the adaptive icon.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Pin head and tail -->
     <path
         android:fillColor="#FFFFFF"
         android:pathData="M54,28C40.2,28 29,39.2 29,53c0,18.5 25,40 25,40s25,-21.5 25,-40C79,39.2 67.8,28 54,28z" />
+    <!-- Well in the head -->
     <path
-        android:fillColor="#1565C0"
-        android:pathData="M54,46a7,7 0 1,0 0.01,0z" />
+        android:fillColor="#0F6E6A"
+        android:pathData="M54,42a11,11 0 1,0 0.01,0z" />
+    <!-- Direction arrow: points north -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,36L59.5,50L54,46.5L48.5,50Z" />
+    <!-- Sound arc: read aloud -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M80.04,31.14A34,34 0 0 1 80.04,74.86" />
 </vector>

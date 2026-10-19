@@ -31,6 +31,7 @@ kotlin {
             implementation(compose.material3)
             implementation(compose.ui)
             implementation(compose.components.resources)
+            implementation("org.jetbrains.compose.material:material-icons-extended:1.7.3")
             implementation("io.ktor:ktor-client-core:3.6.0")
             implementation("io.ktor:ktor-client-logging:3.6.0")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")

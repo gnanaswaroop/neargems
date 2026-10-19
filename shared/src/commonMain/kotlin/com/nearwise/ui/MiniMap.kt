@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
 import com.nearwise.domain.LatLon
@@ -51,14 +52,14 @@ private const val MAX_ZOOM = 18
  * from OpenStreetMap at runtime; the attribution line is required by the OpenStreetMap licence.
  */
 @Composable
-fun MiniMap(from: LatLon, to: LatLon, modifier: Modifier = Modifier) {
+fun MiniMap(from: LatLon, to: LatLon, modifier: Modifier = Modifier, height: Dp = MAP_HEIGHT_DP.dp) {
     val distance = distanceMeters(from, to)
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val tileFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(if (dark) 0.25f else 0.35f) })
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(MAP_HEIGHT_DP.dp)
+            .height(height)
             .semantics {
                 contentDescription = "Map showing your position and the place, ${formatDistance(distance)} apart"
             }

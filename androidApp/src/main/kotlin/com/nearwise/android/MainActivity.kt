@@ -1,11 +1,15 @@
 package com.nearwise.android
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.mutableStateOf
 import com.nearwise.android.service.CarWatchService
 import com.nearwise.app.DriveContainer
 import com.nearwise.ui.NearwiseApp
@@ -14,9 +18,19 @@ class MainActivity : ComponentActivity() {
     private val container: DriveContainer
         get() = (application as NearwiseApplication).container
 
+    /** True once the user has refused location. The app cannot work without it, so it says so. */
+    private val locationDenied = mutableStateOf(false)
+
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { container.refresh() }
+    ) { results ->
+        if (results.values.any { it }) {
+            locationDenied.value = false
+            container.refresh()
+        } else {
+            locationDenied.value = true
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -25,6 +39,9 @@ class MainActivity : ComponentActivity() {
                 container = container,
                 onStart = ::onAppStarted,
                 onWatchChanged = ::onWatchChanged,
+                locationDenied = locationDenied.value,
+                onAllowLocation = ::requestLocation,
+                onOpenSettings = ::openAppSettings,
             )
         }
     }
@@ -39,11 +56,33 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
-    /** Asks for location once, then loads suggestions. */
-    private fun onAppStarted() {
-        val missing = LOCATION_PERMISSIONS.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
-        if (missing.isEmpty()) container.refresh() else permissionLauncher.launch(missing.toTypedArray())
+    override fun onResume() {
+        super.onResume()
+        // Coming back from the settings screen: if location was switched on there, carry on.
+        if (locationDenied.value && hasLocationPermission()) {
+            locationDenied.value = false
+            container.refresh()
+        }
     }
+
+    /** Asks for location when the app opens, then loads suggestions. */
+    private fun onAppStarted() {
+        if (hasLocationPermission()) container.refresh() else requestLocation()
+    }
+
+    private fun requestLocation() {
+        permissionLauncher.launch(LOCATION_PERMISSIONS)
+    }
+
+    /** Opens this app's permission page, for when the system will not ask again. */
+    private fun openAppSettings() {
+        startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)),
+        )
+    }
+
+    private fun hasLocationPermission(): Boolean =
+        LOCATION_PERMISSIONS.any { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
 
     private fun onWatchChanged(on: Boolean) {
         if (on) CarWatchService.start(this) else CarWatchService.stop(this)
