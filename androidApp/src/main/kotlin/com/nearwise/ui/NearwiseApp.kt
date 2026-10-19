@@ -53,7 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import coil3.compose.AsyncImage
+import coil3.compose.SubcomposeAsyncImage
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -435,7 +435,17 @@ private fun CompassPointer(relativeDegrees: Float) {
  */
 @Composable
 private fun PhotoBlock(photo: Photo, name: String, large: Boolean, actions: Actions) {
-    AsyncImage(
+    val placeholder: @Composable (String) -> Unit = { label ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+    SubcomposeAsyncImage(
         model = photo.imageUrl,
         contentDescription = "Photo of $name",
         contentScale = ContentScale.Crop,
@@ -443,6 +453,9 @@ private fun PhotoBlock(photo: Photo, name: String, large: Boolean, actions: Acti
             .fillMaxWidth()
             .height(if (large) 260.dp else 180.dp)
             .clip(RoundedCornerShape(14.dp)),
+        loading = { placeholder("Loading photo…") },
+        error = { placeholder("Photo unavailable") },
+        onError = { android.util.Log.e("Nearwise", "Photo failed: ${photo.imageUrl}", it.result.throwable) },
     )
     Text(
         "Photo: Wikipedia · licence on the file page",
