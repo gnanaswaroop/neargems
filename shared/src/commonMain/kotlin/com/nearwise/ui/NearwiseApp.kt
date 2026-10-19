@@ -515,19 +515,26 @@ private fun SuggestionCard(
     var expanded by rememberSaveable(poi.id) { mutableStateOf(false) }
     val scroll = rememberScrollState()
     val h = availableHeight
+    // Tall phones have spare height, so the photo, map and text grow into it.
     val photoHeight = when {
         large -> 220.dp
+        h >= 700.dp -> 200.dp
         h >= 560.dp -> 150.dp
         h >= 460.dp -> 96.dp
         else -> 0.dp
     }
     val mapHeight = when {
         large -> 150.dp
+        h >= 680.dp -> 190.dp
         h >= 430.dp -> 110.dp
         h >= 340.dp -> 80.dp
         else -> 0.dp
     }
-    val foldLines = if (large || h >= 460.dp) 3 else 2
+    val foldLines = when {
+        h >= 680.dp -> 5
+        large || h >= 460.dp -> 3
+        else -> 2
+    }
     val folded = !expanded && poi.snippet.length > SNIPPET_FOLD_CHARS
 
     Column(
