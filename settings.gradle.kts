@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "DriveScout"
+rootProject.name = "Nearwise"
 include(":androidApp")
