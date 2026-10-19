@@ -2,6 +2,12 @@ package com.nearwise.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.Path
@@ -56,10 +62,13 @@ import androidx.compose.ui.layout.ContentScale
 import coil3.compose.SubcomposeAsyncImage
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nearwise.app.DriveContainer
 import com.nearwise.data.AppSettings
+import com.nearwise.data.ThemeMode
+import com.nearwise.data.Visit
 import com.nearwise.data.PoiState
 import com.nearwise.domain.LatLon
 import com.nearwise.domain.Photo
@@ -93,6 +102,7 @@ fun NearwiseApp(
     val settings by container.settings.settings.collectAsState()
     val carConnected by container.carConnected.collectAsState()
     val heading by container.headingDegrees.collectAsState()
+    val visits by container.visits.collectAsState()
     var showSettings by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { onStart() }
@@ -106,7 +116,7 @@ fun NearwiseApp(
         onOpenUrl = container::openUrl,
     )
 
-    NearwiseTheme {
+    NearwiseTheme(mode = settings.themeMode) {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
@@ -136,7 +146,7 @@ fun NearwiseApp(
                                 verticalArrangement = Arrangement.spacedBy(16.dp),
                             ) {
                                 if (showSettings) {
-                                    SettingsPanel(settings, container::updateSettings, onWatchChanged)
+                                    SettingsPanel(settings, visits, container.now(), container::updateSettings, onWatchChanged)
                                 } else {
                                     SuggestionView(state = state, heading = heading, actions = actions, large = true)
                                 }
@@ -151,7 +161,7 @@ fun NearwiseApp(
                             verticalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
                             if (showSettings) {
-                                SettingsPanel(settings, container::updateSettings, onWatchChanged)
+                                SettingsPanel(settings, visits, container.now(), container::updateSettings, onWatchChanged)
                             } else {
                                 SuggestionView(state = state, heading = heading, actions = actions, large = false)
                             }
@@ -273,14 +283,25 @@ private fun QueueRow(ranked: RankedPoi, selected: Boolean) {
 private fun SuggestionView(state: PoiState, heading: Float?, actions: Actions, large: Boolean) {
     val current = state.current
     when {
-        current != null -> SuggestionCard(
-            ranked = current,
-            queued = state.queued,
-            large = large,
-            from = state.position,
-            heading = heading,
-            actions = actions,
-        )
+        // Keyed on the place, not the fix: the new card rises in as the old one moves away, and the card
+        // only changes when the top pick changes, not on every GPS update.
+        current != null -> AnimatedContent(
+            targetState = current.poi.id,
+            transitionSpec = {
+                (slideInVertically { fullHeight -> fullHeight / 4 } + fadeIn()) togetherWith
+                    (slideOutVertically { fullHeight -> -fullHeight / 4 } + fadeOut())
+            },
+            label = "suggestion",
+        ) { _ ->
+            SuggestionCard(
+                ranked = current,
+                queued = state.queued,
+                large = large,
+                from = state.position,
+                heading = heading,
+                actions = actions,
+            )
+        }
         state.loading -> Text(
             "Searching nearby…",
             style = MaterialTheme.typography.bodyLarge,
@@ -302,6 +323,8 @@ private fun SuggestionCard(
 ) {
     val poi = ranked.poi
     val shape = RoundedCornerShape(20.dp)
+    // Remembered per place, so a card stays expanded across GPS updates but starts folded for a new place.
+    var expanded by rememberSaveable(poi.id) { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -335,9 +358,22 @@ private fun SuggestionCard(
             style = MaterialTheme.typography.bodyLarge,
             fontSize = 17.sp,
             lineHeight = 25.sp,
+            // Cut to three lines until tapped, so the map and the buttons stay on one screen. Tap to expand.
+            maxLines = if (expanded) Int.MAX_VALUE else 3,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.clickable { expanded = !expanded },
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
         )
+        if (poi.snippet.length > SNIPPET_FOLD_CHARS) {
+            Text(
+                if (expanded) "Show less" else "Read more",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { expanded = !expanded },
+            )
+        }
         DistanceDetails(ranked, from, heading)
+        from?.let { MiniMap(from = it, to = poi.location) }
         if (queued > 0) {
             Text(
                 "$queued more nearby",
@@ -460,7 +496,7 @@ private fun PhotoBlock(photo: Photo, name: String, large: Boolean, actions: Acti
         contentScale = ContentScale.Crop,
         modifier = Modifier
             .fillMaxWidth()
-            .height(if (large) 260.dp else 180.dp)
+            .height(if (large) 260.dp else 120.dp)
             .clip(RoundedCornerShape(14.dp)),
         loading = { placeholder("Loading photo…") },
         error = { placeholder("Photo unavailable") },
@@ -506,6 +542,8 @@ private fun EmptyState(message: String?, actions: Actions) {
 @Composable
 private fun SettingsPanel(
     settings: AppSettings,
+    visits: List<Visit>,
+    now: Long,
     onSettings: ((AppSettings) -> AppSettings) -> Unit,
     onWatchChanged: (Boolean) -> Unit,
 ) {
@@ -539,6 +577,48 @@ private fun SettingsPanel(
             }
         }
 
+        SectionTitle("Appearance")
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ThemeMode.entries.forEach { mode ->
+                FilterChip(
+                    selected = settings.themeMode == mode,
+                    onClick = { onSettings { it.copy(themeMode = mode) } },
+                    label = { Text(mode.label()) },
+                )
+            }
+        }
+
+        SectionTitle("Visited")
+        if (visits.isEmpty()) {
+            Text(
+                "Places you get within 50 m of appear here. This history stays on this device.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            visits.take(HISTORY_SHOWN).forEach { visit ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text(visit.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            visit.categoryLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text(
+                        visitedLabel(visit.atMillis, now),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
         SectionTitle("Car")
         SwitchRow(
             label = "Read a suggestion aloud when a car connects",
@@ -559,6 +639,28 @@ private fun SettingsPanel(
             onChange = { on -> onSettings { it.copy(simulateCar = on) } },
         )
     }
+}
+
+private const val HISTORY_SHOWN = 20
+
+/** Snippets longer than this get a "Read more" link; shorter ones always fit. */
+private const val SNIPPET_FOLD_CHARS = 130
+private const val ONE_DAY_MILLIS = 24L * 60 * 60 * 1000
+
+/** "Today", "Yesterday" or "N days ago", for the visit history. */
+private fun visitedLabel(atMillis: Long, now: Long): String {
+    val days = ((now - atMillis) / ONE_DAY_MILLIS).toInt()
+    return when {
+        days <= 0 -> "Today"
+        days == 1 -> "Yesterday"
+        else -> "$days days ago"
+    }
+}
+
+private fun ThemeMode.label(): String = when (this) {
+    ThemeMode.SYSTEM -> "System"
+    ThemeMode.LIGHT -> "Light"
+    ThemeMode.DARK -> "Dark"
 }
 
 @Composable

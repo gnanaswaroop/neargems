@@ -35,6 +35,8 @@ class PoiRepository(
     private val finder: PoiFinder,
     private val location: LocationSource,
     private val narrator: Narrator,
+    /** Where visits are recorded. Optional so that tests can run without a history. */
+    private val visits: VisitStore? = null,
 ) {
     private val mutex = Mutex()
     private val _state = MutableStateFlow(PoiState(message = "Finding places nearby…"))
@@ -113,6 +115,7 @@ class PoiRepository(
     private fun publish(radiusMeters: Int, announce: Boolean) {
         val origin = here ?: return
         val ranked = PoiRanker.rank(candidates, origin, radiusMeters, settings.dismissedIds())
+        recordArrivals(ranked)
         val top = ranked.firstOrNull()
         _state.value = when {
             top != null -> PoiState(
@@ -130,9 +133,18 @@ class PoiRepository(
         }
     }
 
+    /** A place within [ARRIVAL_METERS] of the user counts as visited. */
+    private fun recordArrivals(ranked: List<RankedPoi>) {
+        val history = visits ?: return
+        ranked.filter { it.distanceMeters <= ARRIVAL_METERS }.forEach {
+            history.record(it.poi.id, it.poi.name, it.poi.category.label)
+        }
+    }
+
     private data class FetchKey(val categories: Set<PoiCategory>, val radiusMeters: Int)
 
     private companion object {
         const val REFETCH_METERS = 400.0
+        const val ARRIVAL_METERS = 50.0
     }
 }

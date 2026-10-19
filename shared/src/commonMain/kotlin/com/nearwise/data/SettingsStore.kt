@@ -6,8 +6,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/** Which colour scheme to show. [SYSTEM] follows the device's light or dark setting. */
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
 data class AppSettings(
     val categories: Set<PoiCategory> = PoiCategory.DEFAULT,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val radiusMeters: Int = 1000,
     /** Read the top suggestion aloud when a car connects. */
     val announceOnCar: Boolean = true,
@@ -28,6 +32,7 @@ class SettingsStore(private val store: KeyValueStore, private val clock: () -> L
         store.putString(KEY_ANNOUNCE_CAR, next.announceOnCar.toString())
         store.putString(KEY_WATCH, next.watchInBackground.toString())
         store.putString(KEY_SIMULATE, next.simulateCar.toString())
+        store.putString(KEY_THEME, next.themeMode.name)
         _settings.value = next
     }
 
@@ -65,6 +70,8 @@ class SettingsStore(private val store: KeyValueStore, private val clock: () -> L
             announceOnCar = store.getString(KEY_ANNOUNCE_CAR)?.toBooleanStrictOrNull() ?: defaults.announceOnCar,
             watchInBackground = store.getString(KEY_WATCH)?.toBooleanStrictOrNull() ?: defaults.watchInBackground,
             simulateCar = store.getString(KEY_SIMULATE)?.toBooleanStrictOrNull() ?: defaults.simulateCar,
+            themeMode = store.getString(KEY_THEME)?.let { name -> ThemeMode.entries.firstOrNull { it.name == name } }
+                ?: defaults.themeMode,
         )
     }
 
@@ -76,5 +83,6 @@ class SettingsStore(private val store: KeyValueStore, private val clock: () -> L
         const val KEY_WATCH = "watch_in_background"
         const val KEY_SIMULATE = "simulate_car"
         const val KEY_DISMISSED = "dismissed"
+        const val KEY_THEME = "theme_mode"
     }
 }

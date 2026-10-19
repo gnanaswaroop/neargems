@@ -2,12 +2,15 @@ package com.nearwise.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import com.nearwise.data.ThemeMode
 
 // Palette from the Nearwise screen designs: warm off-white ground, deep teal accent.
 private val LightScheme = lightColorScheme(
@@ -40,12 +43,22 @@ private val DarkScheme = darkColorScheme(
     surfaceVariant = Color(0xFF37332D),
 )
 
+/** Applies the colour scheme the user chose; [ThemeMode.SYSTEM] follows the device setting. */
 @Composable
-fun NearwiseTheme(content: @Composable () -> Unit) {
+fun NearwiseTheme(mode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -> Unit) {
+    val dark = when (mode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+    val colors = if (dark) DarkScheme else LightScheme
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) DarkScheme else LightScheme,
+        colorScheme = colors,
     ) {
+        // Text defaults to the scheme's on-background colour, so it never falls back to black on dark.
         // Body text defaults to Source Sans 3; titles pick displayFont() explicitly.
-        ProvideTextStyle(TextStyle(fontFamily = bodyFont()), content)
+        CompositionLocalProvider(LocalContentColor provides colors.onBackground) {
+            ProvideTextStyle(TextStyle(fontFamily = bodyFont()), content)
+        }
     }
 }

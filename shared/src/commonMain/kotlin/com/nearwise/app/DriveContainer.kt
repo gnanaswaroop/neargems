@@ -7,6 +7,8 @@ import com.nearwise.data.PoiFinder
 import com.nearwise.data.PoiRepository
 import com.nearwise.data.PoiState
 import com.nearwise.data.SettingsStore
+import com.nearwise.data.Visit
+import com.nearwise.data.VisitStore
 import com.nearwise.data.WikipediaSource
 import com.nearwise.domain.Poi
 import com.nearwise.platform.KeyValueStore
@@ -55,7 +57,14 @@ class DriveContainer(platform: PlatformServices) {
     private val maps = platform.maps
     private val location = platform.location
 
+    private val clock = platform.clock
+
     val settings = SettingsStore(platform.keyValues, platform.clock)
+
+    /** Places the user has been close to, stored on this device only. */
+    private val visitStore = VisitStore(platform.keyValues, platform.clock)
+    val visits: StateFlow<List<Visit>> = visitStore.visits
+
     val repository = PoiRepository(
         settings = settings,
         finder = PoiFinder(
@@ -64,9 +73,12 @@ class DriveContainer(platform: PlatformServices) {
         ),
         location = platform.location,
         narrator = platform.narrator,
+        visits = visitStore,
     )
 
     val state: StateFlow<PoiState> = repository.state
+
+    fun now(): Long = clock()
 
     val carConnected: StateFlow<Boolean> = combine(platform.carConnected, settings.settings) { projecting, s ->
         projecting || s.simulateCar
