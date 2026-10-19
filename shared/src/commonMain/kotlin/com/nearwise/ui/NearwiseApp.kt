@@ -101,6 +101,15 @@ private val TWO_PANE_MIN_WIDTH = 600.dp
 /** Snippets longer than this get a "Read more" link; shorter ones always fit. */
 private const val SNIPPET_FOLD_CHARS = 130
 
+/** Share of the card's height given to the mini map when there is room for it. */
+private const val MAP_SHARE = 0.25f
+
+/** Height taken by the category, title, distance, buttons and padding, leaving the rest for text. */
+private val CARD_CHROME = 230.dp
+
+/** Height of one line of the snippet body. */
+private val SNIPPET_LINE_HEIGHT = 25.dp
+
 /** Up to this many places, the swipe cue shows one dot per place. */
 private const val MAX_DOTS = 7
 
@@ -515,7 +524,7 @@ private fun SuggestionCard(
     var expanded by rememberSaveable(poi.id) { mutableStateOf(false) }
     val scroll = rememberScrollState()
     val h = availableHeight
-    // Tall phones have spare height, so the photo, map and text grow into it.
+    // The map takes a share of whatever height the card has, and the text gets the rest.
     val photoHeight = when {
         large -> 220.dp
         h >= 700.dp -> 200.dp
@@ -525,16 +534,11 @@ private fun SuggestionCard(
     }
     val mapHeight = when {
         large -> 150.dp
-        h >= 680.dp -> 190.dp
-        h >= 430.dp -> 110.dp
-        h >= 340.dp -> 80.dp
+        h >= 340.dp -> (h * MAP_SHARE).coerceIn(80.dp, 260.dp)
         else -> 0.dp
     }
-    val foldLines = when {
-        h >= 680.dp -> 5
-        large || h >= 460.dp -> 3
-        else -> 2
-    }
+    val textSpace = h - photoHeight - mapHeight - CARD_CHROME
+    val foldLines = (textSpace / SNIPPET_LINE_HEIGHT).toInt().coerceIn(2, 12)
     val folded = !expanded && poi.snippet.length > SNIPPET_FOLD_CHARS
 
     Column(
