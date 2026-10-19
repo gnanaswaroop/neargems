@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Nearwise"
-include(":androidApp")
+include(":shared", ":androidApp")

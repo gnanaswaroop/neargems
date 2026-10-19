@@ -54,7 +54,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.SubcomposeAsyncImage
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -124,38 +123,40 @@ fun NearwiseApp(
                 TopBar(showSettings = showSettings, onToggleSettings = { showSettings = !showSettings })
                 ConnectionStatus(connected = carConnected, simulated = settings.simulateCar)
 
+                // The content scrolls above; the action buttons stay pinned at the bottom in the same place.
                 if (twoPane) {
                     Row(
                         modifier = Modifier.fillMaxSize(),
                         horizontalArrangement = Arrangement.spacedBy(28.dp),
                     ) {
                         QueuePane(state = state, actions = actions)
+                        Column(modifier = Modifier.weight(1f).fillMaxSize()) {
+                            Column(
+                                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                            ) {
+                                if (showSettings) {
+                                    SettingsPanel(settings, container::updateSettings, onWatchChanged)
+                                } else {
+                                    SuggestionView(state = state, heading = heading, actions = actions, large = true)
+                                }
+                            }
+                            if (!showSettings) state.current?.let { ActionBar(it.poi, actions) }
+                        }
+                    }
+                } else {
+                    Column(modifier = Modifier.fillMaxSize()) {
                         Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState()),
+                            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
                             if (showSettings) {
                                 SettingsPanel(settings, container::updateSettings, onWatchChanged)
                             } else {
-                                SuggestionView(state = state, heading = heading, actions = actions, large = true)
+                                SuggestionView(state = state, heading = heading, actions = actions, large = false)
                             }
                         }
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        if (showSettings) {
-                            SettingsPanel(settings, container::updateSettings, onWatchChanged)
-                        } else {
-                            SuggestionView(state = state, heading = heading, actions = actions, large = false)
-                        }
+                        if (!showSettings) state.current?.let { ActionBar(it.poi, actions) }
                     }
                 }
             }
@@ -182,7 +183,7 @@ private fun TopBar(showSettings: Boolean, onToggleSettings: () -> Unit) {
     ) {
         Text(
             "Nearwise",
-            fontFamily = FontFamily.Serif,
+            fontFamily = displayFont(),
             fontWeight = FontWeight.SemiBold,
             fontSize = 24.sp,
             color = MaterialTheme.colorScheme.onBackground,
@@ -221,7 +222,7 @@ private fun QueuePane(state: PoiState, actions: Actions) {
         modifier = Modifier.width(340.dp).fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Nearby", style = MaterialTheme.typography.titleMedium, fontFamily = FontFamily.Serif)
+        Text("Nearby", style = MaterialTheme.typography.titleMedium, fontFamily = displayFont())
         if (queue.isEmpty()) {
             Text(
                 state.message ?: "Nothing to suggest right now.",
@@ -323,7 +324,7 @@ private fun SuggestionCard(
         )
         Text(
             poi.name,
-            fontFamily = FontFamily.Serif,
+            fontFamily = displayFont(),
             fontWeight = FontWeight.SemiBold,
             fontSize = if (large) 40.sp else 30.sp,
             lineHeight = if (large) 46.sp else 36.sp,
@@ -337,37 +338,45 @@ private fun SuggestionCard(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
         )
         DistanceDetails(ranked, from, heading)
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(
-                onClick = actions.onSpeak,
-                modifier = Modifier.heightIn(min = 48.dp),
-                shape = RoundedCornerShape(50),
-            ) { Text("Read aloud") }
-            OutlinedButton(
-                onClick = actions.onNext,
-                modifier = Modifier.heightIn(min = 48.dp),
-                shape = RoundedCornerShape(50),
-            ) { Text("Next") }
-            TextButton(
-                onClick = { actions.onOpenMap(poi) },
-                modifier = Modifier.heightIn(min = 48.dp),
-            ) { Text("Map") }
-            poi.link?.let { link ->
-                TextButton(
-                    onClick = { actions.onOpenUrl(link) },
-                    modifier = Modifier.heightIn(min = 48.dp),
-                ) { Text("Article") }
-            }
-        }
         if (queued > 0) {
             Text(
                 "$queued more nearby",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+/**
+ * The four actions, pinned to the bottom of the screen. Sitting in the same place whatever the card
+ * holds keeps the buttons where the thumb expects them.
+ */
+@Composable
+private fun ActionBar(poi: Poi, actions: Actions) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = actions.onSpeak,
+                modifier = Modifier.weight(1.6f).heightIn(min = 52.dp),
+                shape = RoundedCornerShape(50),
+            ) { Text("Read aloud") }
+            OutlinedButton(
+                onClick = actions.onNext,
+                modifier = Modifier.weight(1f).heightIn(min = 52.dp),
+                shape = RoundedCornerShape(50),
+            ) { Text("Next") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { actions.onOpenMap(poi) }, modifier = Modifier.heightIn(min = 44.dp)) { Text("Map") }
+            poi.link?.let { link ->
+                TextButton(onClick = { actions.onOpenUrl(link) }, modifier = Modifier.heightIn(min = 44.dp)) {
+                    Text("Article")
+                }
+            }
         }
     }
 }
@@ -455,7 +464,6 @@ private fun PhotoBlock(photo: Photo, name: String, large: Boolean, actions: Acti
             .clip(RoundedCornerShape(14.dp)),
         loading = { placeholder("Loading photo…") },
         error = { placeholder("Photo unavailable") },
-        onError = { android.util.Log.e("Nearwise", "Photo failed: ${photo.imageUrl}", it.result.throwable) },
     )
     Text(
         "Photo: Wikipedia · licence on the file page",
@@ -479,7 +487,7 @@ private fun EmptyState(message: String?, actions: Actions) {
         )
         Text(
             message ?: "Nothing to suggest right now.",
-            fontFamily = FontFamily.Serif,
+            fontFamily = displayFont(),
             fontWeight = FontWeight.SemiBold,
             fontSize = 24.sp,
             textAlign = TextAlign.Center,
@@ -558,7 +566,7 @@ private fun SectionTitle(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.titleMedium,
-        fontFamily = FontFamily.Serif,
+        fontFamily = displayFont(),
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.padding(top = 8.dp),
     )

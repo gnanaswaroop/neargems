@@ -2,10 +2,12 @@ package com.nearwise.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 
 // Palette from the Nearwise screen designs: warm off-white ground, deep teal accent.
 private val LightScheme = lightColorScheme(
@@ -42,6 +44,8 @@ private val DarkScheme = darkColorScheme(
 fun NearwiseTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = if (isSystemInDarkTheme()) DarkScheme else LightScheme,
-        content = content,
-    )
+    ) {
+        // Body text defaults to Source Sans 3; titles pick displayFont() explicitly.
+        ProvideTextStyle(TextStyle(fontFamily = bodyFont()), content)
+    }
 }

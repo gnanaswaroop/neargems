@@ -47,16 +47,16 @@ class WikipediaSource(private val http: Http, private val language: String) {
         private const val MAX_SNIPPET_CHARS = 240
         private val json = Json { ignoreUnknownKeys = true }
 
-        internal fun parseGeoSearch(body: String): List<GeoHit> =
+        fun parseGeoSearch(body: String): List<GeoHit> =
             json.decodeFromString<GeoResponse>(body).query?.geosearch.orEmpty()
 
-        internal fun parseExtracts(body: String): Map<Long, ExtractPage> =
+        fun parseExtracts(body: String): Map<Long, ExtractPage> =
             json.decodeFromString<ExtractResponse>(body).query?.pages?.values
                 ?.associateBy { it.pageid }
                 .orEmpty()
 
         /** The article's lead image as a URL to load at runtime, with the file page as its credit link. */
-        internal fun photoFor(page: ExtractPage, language: String): Photo? {
+        fun photoFor(page: ExtractPage, language: String): Photo? {
             val thumbnail = page.thumbnail?.source ?: return null
             val file = page.pageimage ?: return null
             return Photo(
@@ -74,11 +74,11 @@ class WikipediaSource(private val http: Http, private val language: String) {
             RegexOption.IGNORE_CASE,
         )
 
-        internal fun isAreaArticle(intro: String): Boolean =
+        fun isAreaArticle(intro: String): Boolean =
             AREA_ARTICLE.containsMatchIn(intro.substringBefore(". "))
 
         /** Collapses whitespace and cuts at a word boundary near [MAX_SNIPPET_CHARS]. */
-        internal fun trimSnippet(text: String): String {
+        fun trimSnippet(text: String): String {
             val clean = text.replace(Regex("\\s+"), " ").trim()
             if (clean.length <= MAX_SNIPPET_CHARS) return clean
             val cut = clean.lastIndexOf(' ', MAX_SNIPPET_CHARS)
@@ -90,22 +90,22 @@ class WikipediaSource(private val http: Http, private val language: String) {
 }
 
 @Serializable
-internal data class GeoResponse(val query: GeoQuery? = null)
+data class GeoResponse(val query: GeoQuery? = null)
 
 @Serializable
-internal data class GeoQuery(val geosearch: List<GeoHit> = emptyList())
+data class GeoQuery(val geosearch: List<GeoHit> = emptyList())
 
 @Serializable
-internal data class GeoHit(val pageid: Long, val title: String, val lat: Double, val lon: Double)
+data class GeoHit(val pageid: Long, val title: String, val lat: Double, val lon: Double)
 
 @Serializable
-internal data class ExtractResponse(val query: ExtractQuery? = null)
+data class ExtractResponse(val query: ExtractQuery? = null)
 
 @Serializable
-internal data class ExtractQuery(val pages: Map<String, ExtractPage> = emptyMap())
+data class ExtractQuery(val pages: Map<String, ExtractPage> = emptyMap())
 
 @Serializable
-internal data class ExtractPage(
+data class ExtractPage(
     val pageid: Long,
     val extract: String? = null,
     val thumbnail: Thumbnail? = null,
@@ -113,6 +113,6 @@ internal data class ExtractPage(
 )
 
 @Serializable
-internal data class Thumbnail(val source: String)
+data class Thumbnail(val source: String)
 
 private const val THUMBNAIL_WIDTH_PX = 640

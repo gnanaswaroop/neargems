@@ -26,7 +26,7 @@ class OverpassSource(private val http: Http) {
         private val json = Json { ignoreUnknownKeys = true }
 
         /** Turns an Overpass JSON response into places. */
-        internal fun parse(body: String): List<Poi> =
+        fun parse(body: String): List<Poi> =
             json.decodeFromString<OverpassResponse>(body).elements.mapNotNull { element ->
                 val name = element.tags["name"] ?: return@mapNotNull null
                 val lat = element.lat ?: element.center?.lat ?: return@mapNotNull null
@@ -67,10 +67,10 @@ class OverpassSource(private val http: Http) {
 }
 
 @Serializable
-internal data class OverpassResponse(val elements: List<OverpassElement> = emptyList())
+data class OverpassResponse(val elements: List<OverpassElement> = emptyList())
 
 @Serializable
-internal data class OverpassElement(
+data class OverpassElement(
     val type: String,
     val id: Long,
     val lat: Double? = null,
@@ -80,4 +80,4 @@ internal data class OverpassElement(
 )
 
 @Serializable
-internal data class OverpassCenter(val lat: Double, val lon: Double)
+data class OverpassCenter(val lat: Double, val lon: Double)
