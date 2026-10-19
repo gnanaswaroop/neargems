@@ -61,6 +61,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.SubcomposeAsyncImage
 import androidx.compose.ui.text.font.FontWeight
@@ -124,7 +127,9 @@ fun NearwiseApp(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
-                .windowInsetsPadding(WindowInsets.safeDrawing),
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                // Nothing may draw past the screen edge: the page scrolls only vertically.
+                .clipToBounds(),
         ) {
             val twoPane = maxWidth >= TWO_PANE_MIN_WIDTH
             Column(
@@ -356,17 +361,33 @@ private fun SuggestionCard(
             lineHeight = if (large) 46.sp else 36.sp,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        Text(
-            poi.snippet,
-            style = MaterialTheme.typography.bodyLarge,
-            fontSize = 17.sp,
-            lineHeight = 25.sp,
-            // Cut to three lines until tapped, so the map and the buttons stay on one screen. Tap to expand.
-            maxLines = if (expanded) Int.MAX_VALUE else 3,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.semantics { role = Role.Button }.clickable { expanded = !expanded },
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-        )
+        // Collapsed: three lines that fade out at the bottom, so the cut is soft rather than abrupt.
+        // Expanded: the whole text, with no truncation, and the card grows to fit it.
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                poi.snippet,
+                style = MaterialTheme.typography.bodyLarge,
+                fontSize = 17.sp,
+                lineHeight = 25.sp,
+                maxLines = if (expanded) Int.MAX_VALUE else 3,
+                overflow = if (expanded) TextOverflow.Clip else TextOverflow.Clip,
+                modifier = Modifier.semantics { role = Role.Button }.clickable { expanded = !expanded },
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+            )
+            if (!expanded && poi.snippet.length > SNIPPET_FOLD_CHARS) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(28.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, MaterialTheme.colorScheme.surface),
+                            ),
+                        ),
+                )
+            }
+        }
         if (poi.snippet.length > SNIPPET_FOLD_CHARS) {
             Text(
                 if (expanded) "Show less" else "Read more",
@@ -408,14 +429,6 @@ private fun ActionBar(poi: Poi, actions: Actions) {
                 modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                 shape = RoundedCornerShape(50),
             ) { Text("Next") }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { actions.onOpenMap(poi) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Map") }
-            poi.link?.let { link ->
-                TextButton(onClick = { actions.onOpenUrl(link) }, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text("Article")
-                }
-            }
         }
     }
 }
