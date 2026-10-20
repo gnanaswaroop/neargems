@@ -10,9 +10,13 @@ import kotlinx.coroutines.flow.asStateFlow
 /** Which colour scheme to show. [SYSTEM] follows the device's light or dark setting. */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+/** How the places are shown: one card at a time, or a list to pick from. */
+enum class PlaceView { CARDS, LIST }
+
 data class AppSettings(
     val categories: Set<PoiCategory> = PoiCategory.DEFAULT,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val placeView: PlaceView = PlaceView.CARDS,
     val radiusMeters: Int = 1000,
     /** Read the top suggestion aloud when a car connects. */
     val announceOnCar: Boolean = true,
@@ -36,6 +40,7 @@ class SettingsStore(private val store: KeyValueStore, private val clock: () -> L
         store.putString(KEY_WATCH, next.watchInBackground.toString())
         store.putString(KEY_SIMULATE, next.simulateCar.toString())
         store.putString(KEY_THEME, next.themeMode.name)
+        store.putString(KEY_PLACE_VIEW, next.placeView.name)
         store.putString(KEY_TEST_LAT, next.testLocation?.lat?.toString())
         store.putString(KEY_TEST_LON, next.testLocation?.lon?.toString())
         _settings.value = next
@@ -83,6 +88,8 @@ class SettingsStore(private val store: KeyValueStore, private val clock: () -> L
             simulateCar = store.getString(KEY_SIMULATE)?.toBooleanStrictOrNull() ?: defaults.simulateCar,
             themeMode = store.getString(KEY_THEME)?.let { name -> ThemeMode.entries.firstOrNull { it.name == name } }
                 ?: defaults.themeMode,
+            placeView = store.getString(KEY_PLACE_VIEW)?.let { name -> PlaceView.entries.firstOrNull { it.name == name } }
+                ?: defaults.placeView,
             testLocation = readTestLocation(),
         )
     }
@@ -102,6 +109,7 @@ class SettingsStore(private val store: KeyValueStore, private val clock: () -> L
         const val KEY_SIMULATE = "simulate_car"
         const val KEY_DISMISSED = "dismissed"
         const val KEY_THEME = "theme_mode"
+        const val KEY_PLACE_VIEW = "place_view"
         const val KEY_TEST_LAT = "test_lat"
         const val KEY_TEST_LON = "test_lon"
     }

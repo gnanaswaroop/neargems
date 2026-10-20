@@ -89,6 +89,7 @@ import androidx.compose.material.icons.outlined.Settings
 import com.neargems.app.DriveContainer
 import com.neargems.data.AppSettings
 import com.neargems.data.PoiState
+import com.neargems.data.PlaceView
 import com.neargems.data.ThemeMode
 import com.neargems.data.Visit
 import com.neargems.domain.LatLon
@@ -108,6 +109,9 @@ private val RADIUS_OPTIONS = listOf(500 to "500 m", 1000 to "1 km", 2000 to "2 k
 
 /** Width from which the layout switches to two panes (tablets, foldables, landscape phones). */
 private val TWO_PANE_MIN_WIDTH = 600.dp
+
+/** Below this height a wide screen is a landscape phone, which gives the place the full width. */
+private val WIDE_MAX_HEIGHT = 500.dp
 
 /** Rough characters per line of the snippet body, used to size the collapsed text to the card. */
 private const val SNIPPET_CHARS_PER_LINE = 34
@@ -193,6 +197,7 @@ fun NearGemsApp(
                 .clipToBounds(),
         ) {
             val twoPane = maxWidth >= TWO_PANE_MIN_WIDTH
+            val landscapePhone = twoPane && maxHeight < WIDE_MAX_HEIGHT
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -212,6 +217,28 @@ fun NearGemsApp(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         SettingsPanel(settings, visits, container.now(), container::updateSettings, onWatchChanged)
+                    }
+                } else if (settings.placeView == PlaceView.LIST) {
+                    // The whole list, in portrait and landscape alike. Tapping a place opens it in the modal.
+                    PlaceListArea(
+                        state = state,
+                        actions = actions,
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                    )
+                } else if (landscapePhone) {
+                    // Landscape phones: the place gets the full width, with its photo beside the details.
+                    Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        SuggestionArea(
+                            state = state,
+                            places = places,
+                            from = state.position,
+                            heading = heading,
+                            large = true,
+                            wide = true,
+                            actions = actions,
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                        )
+                        state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
                     }
                 } else if (twoPane) {
                     Row(
@@ -421,6 +448,47 @@ private fun ConnectionIcon(connected: Boolean, simulated: Boolean) {
     }
 }
 
+/**
+ * The places as a list, for choosing one rather than swiping through cards. Tapping a row opens the
+ * place in the same modal as a card, with its photo viewer. Read aloud, Next and Back stay pinned below.
+ */
+@Composable
+private fun PlaceListArea(state: PoiState, actions: Actions, modifier: Modifier) {
+    val queue = listOfNotNull(state.current) + state.upcoming
+    var openPlace by remember { mutableStateOf<RankedPoi?>(null) }
+    var openPhoto by remember { mutableStateOf<Photo?>(null) }
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (queue.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    state.message ?: "Nothing to suggest right now.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(queue, key = { it.poi.id }) { ranked ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(role = Role.Button) { openPlace = ranked },
+                    ) {
+                        QueueRow(ranked, selected = ranked == state.current)
+                    }
+                }
+            }
+        }
+        state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
+    }
+    openPlace?.let { ranked ->
+        PlaceDetailDialog(ranked.poi, actions, onPhotoClick = { openPhoto = ranked.poi.photo }) { openPlace = null }
+    }
+    openPhoto?.let { photo ->
+        PhotoViewer(photo, openPlace?.poi?.name.orEmpty(), actions) { openPhoto = null }
+    }
+}
+
 /** Tablet left pane: the top pick and the rest of the queue. */
 @Composable
 private fun QueuePane(state: PoiState, actions: Actions) {
@@ -488,6 +556,7 @@ private fun SuggestionArea(
     from: LatLon?,
     heading: Float?,
     large: Boolean,
+    wide: Boolean = false,
     actions: Actions,
     modifier: Modifier,
 ) {
@@ -498,6 +567,7 @@ private fun SuggestionArea(
             from = from,
             heading = heading,
             large = large,
+            wide = wide,
             actions = actions,
             modifier = modifier,
         )
@@ -527,6 +597,7 @@ private fun SuggestionPager(
     from: LatLon?,
     heading: Float?,
     large: Boolean,
+    wide: Boolean,
     actions: Actions,
     modifier: Modifier,
 ) {
@@ -556,6 +627,7 @@ private fun SuggestionPager(
                 SuggestionCard(
                     ranked = pages[page],
                     large = large,
+                    wide = wide,
                     from = from,
                     heading = heading,
                     availableHeight = maxHeight,
@@ -619,6 +691,7 @@ private fun SwipeCue(page: Int, count: Int, back: Boolean) {
 private fun SuggestionCard(
     ranked: RankedPoi,
     large: Boolean,
+    wide: Boolean,
     from: LatLon?,
     heading: Float?,
     availableHeight: Dp,
@@ -649,6 +722,9 @@ private fun SuggestionCard(
     val collapsed = summarise(poi.snippet, maxChars = foldLines * SNIPPET_CHARS_PER_LINE)
 
     // If the text still does not fit a very short window, the card scrolls rather than cutting it off.
+    if (wide) {
+        WideSuggestionCard(ranked, from, heading, h, actions, onPhotoClick = { photoOpen = true }, onDetailClick = { detailOpen = true })
+    } else {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -706,11 +782,74 @@ private fun SuggestionCard(
             from?.let { MiniMap(from = it, to = poi.location, height = mapHeight, onClick = { actions.onOpenMap(poi) }) }
         }
     }
+    }
     if (detailOpen) {
         PlaceDetailDialog(poi, actions, onPhotoClick = { photoOpen = true }) { detailOpen = false }
     }
     if (photoOpen) {
         poi.photo?.let { photo -> PhotoViewer(photo, poi.name, actions) { photoOpen = false } }
+    }
+}
+
+/**
+ * Landscape phones: the photo on the left and the whole place on the right, so the width is used
+ * for information rather than a list. The text is not folded here; the right side scrolls if needed.
+ */
+@Composable
+private fun WideSuggestionCard(
+    ranked: RankedPoi,
+    from: LatLon?,
+    heading: Float?,
+    availableHeight: Dp,
+    actions: Actions,
+    onPhotoClick: () -> Unit,
+    onDetailClick: () -> Unit,
+) {
+    val poi = ranked.poi
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp))
+            .padding(20.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+    ) {
+        poi.photo?.let { photo ->
+            Column(modifier = Modifier.weight(1f)) {
+                PhotoBlock(photo, poi.name, (availableHeight - 56.dp).coerceAtLeast(120.dp), actions, onPhotoClick)
+            }
+        }
+        Column(
+            modifier = Modifier.weight(1.3f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                poi.category.label.uppercase(),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                poi.name,
+                fontFamily = displayFont(),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 40.sp,
+                lineHeight = 46.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.semantics { heading() },
+            )
+            Text(
+                poi.snippet,
+                style = MaterialTheme.typography.bodyLarge,
+                fontSize = 17.sp,
+                lineHeight = 25.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                modifier = Modifier.semantics { role = Role.Button }.clickable(onClick = onDetailClick),
+            )
+            DistanceDetails(ranked, from, heading)
+            from?.let { MiniMap(from = it, to = poi.location, height = 120.dp, onClick = { actions.onOpenMap(poi) }) }
+        }
     }
 }
 
@@ -1006,6 +1145,17 @@ private fun SettingsPanel(
                     selected = settings.themeMode == mode,
                     onClick = { onSettings { it.copy(themeMode = mode) } },
                     label = { Text(mode.label()) },
+                )
+            }
+        }
+
+        SectionTitle("Places")
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PlaceView.entries.forEach { view ->
+                FilterChip(
+                    selected = settings.placeView == view,
+                    onClick = { onSettings { it.copy(placeView = view) } },
+                    label = { Text(if (view == PlaceView.CARDS) "One card at a time" else "List") },
                 )
             }
         }
