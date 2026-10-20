@@ -133,8 +133,9 @@ class PoiRepository(
         val ranked = PoiRanker.rank(candidates, origin, radiusMeters, settings.dismissedIds())
         recordArrivals(ranked)
         val top = ranked.firstOrNull()
-        // The place Back would bring back is dismissed, so it is ranked on its own to get a fresh distance.
-        val previous = passed.lastOrNull()?.let { PoiRanker.rank(listOf(it.poi), origin, radiusMeters, emptySet()).firstOrNull() }
+        // The place Back would bring back. It is always shown, even after moving past the search radius,
+        // so the left-hand card is there whenever Back is; only its distance is taken from here.
+        val previous = passed.lastOrNull()?.let { RankedPoi(it.poi, distanceMeters(origin, it.poi.location), it.poi.interest) }
         _state.value = when {
             top != null -> PoiState(
                 current = top,

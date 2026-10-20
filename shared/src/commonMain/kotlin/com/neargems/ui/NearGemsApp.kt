@@ -80,10 +80,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.SubcomposeAsyncImage
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DirectionsCar
+import androidx.compose.material.icons.outlined.Settings
 import com.neargems.app.DriveContainer
 import com.neargems.data.AppSettings
 import com.neargems.data.PoiState
@@ -377,17 +379,14 @@ private fun TopBar(showSettings: Boolean, connected: Boolean, simulated: Boolean
         Wordmark(modifier = Modifier.weight(1f))
         ConnectionIcon(connected = connected, simulated = simulated)
         Spacer(Modifier.width(4.dp))
-        OutlinedButton(
-            onClick = onToggleSettings,
-            modifier = Modifier.heightIn(min = 40.dp),
-            shape = RoundedCornerShape(50),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-        ) {
-            if (showSettings) {
-                Icon(Icons.Filled.Check, contentDescription = "Done", modifier = Modifier.size(20.dp))
-            } else {
-                Text("Settings", fontWeight = FontWeight.SemiBold)
-            }
+        // A plain icon, like the car beside it: no border, so it reads as an icon rather than a button.
+        IconButton(onClick = onToggleSettings, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = if (showSettings) Icons.Outlined.Check else Icons.Outlined.Settings,
+                contentDescription = if (showSettings) "Done" else "Settings",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(28.dp),
+            )
         }
     }
 }
