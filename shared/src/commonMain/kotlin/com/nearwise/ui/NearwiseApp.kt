@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -38,12 +39,14 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -66,6 +69,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -143,6 +147,7 @@ fun NearwiseApp(
 
     val actions = Actions(
         onNext = container::next,
+        onPrevious = container::previous,
         onSpeak = container::speakCurrent,
         onOpenMap = container::openMap,
         onRefresh = container::refresh,
@@ -204,7 +209,7 @@ fun NearwiseApp(
                                 actions = actions,
                                 modifier = Modifier.weight(1f).fillMaxWidth(),
                             )
-                            state.current?.let { ActionBar(it.poi, actions) }
+                            state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
                         }
                     }
                 } else {
@@ -217,7 +222,7 @@ fun NearwiseApp(
                         actions = actions,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                     )
-                    state.current?.let { ActionBar(it.poi, actions) }
+                    state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
                 }
             }
         }
@@ -284,6 +289,7 @@ private fun LocationRequiredScreen(onAllow: () -> Unit, onOpenSettings: () -> Un
 /** Callbacks the suggestion views call. Grouped so the composables stay short. */
 private class Actions(
     val onNext: () -> Unit,
+    val onPrevious: () -> Unit,
     val onSpeak: () -> Unit,
     val onOpenMap: (Poi) -> Unit,
     val onRefresh: () -> Unit,
@@ -618,11 +624,17 @@ private fun SuggestionCard(
  * holds keeps the buttons where the thumb expects them.
  */
 @Composable
-private fun ActionBar(poi: Poi, actions: Actions) {
+private fun ActionBar(actions: Actions, canGoBack: Boolean) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
     ) {
+        OutlinedButton(
+            onClick = actions.onPrevious,
+            enabled = canGoBack,
+            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+            shape = RoundedCornerShape(50),
+        ) { Text("Back") }
         Button(
             onClick = actions.onSpeak,
             modifier = Modifier.weight(1.6f).heightIn(min = 48.dp),
@@ -857,6 +869,76 @@ private fun SettingsPanel(
             checked = settings.simulateCar,
             onChange = { on -> onSettings { it.copy(simulateCar = on) } },
         )
+
+        SectionTitle("Testing location")
+        SwitchRow(
+            label = "Use a chosen location instead of GPS",
+            checked = settings.testLocation != null,
+            onChange = { on -> onSettings { it.copy(testLocation = if (on) it.testLocation ?: TEST_PRESETS.first().second else null) } },
+        )
+        settings.testLocation?.let { location ->
+            TestLocationEditor(location) { chosen -> onSettings { it.copy(testLocation = chosen) } }
+        }
+    }
+}
+
+/** Places a test location can be set to, for trying the suggestions without walking anywhere. */
+private val TEST_PRESETS = listOf(
+    "Trafalgar Square" to LatLon(51.5080, -0.1281),
+    "Oxford Circus" to LatLon(51.5152, -0.1419),
+    "Tower Bridge" to LatLon(51.5055, -0.0754),
+)
+
+/** Presets and typed coordinates for the test location. Suggestions update as soon as one is set. */
+@Composable
+private fun TestLocationEditor(location: LatLon, onLocation: (LatLon) -> Unit) {
+    var latitude by remember(location) { mutableStateOf(location.lat.toString()) }
+    var longitude by remember(location) { mutableStateOf(location.lon.toString()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TEST_PRESETS.forEach { (name, point) ->
+                FilterChip(
+                    selected = point == location,
+                    onClick = { onLocation(point) },
+                    label = { Text(name) },
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = latitude,
+                onValueChange = { latitude = it },
+                label = { Text("Latitude") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedTextField(
+                value = longitude,
+                onValueChange = { longitude = it },
+                label = { Text("Longitude") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+        }
+        error?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+        Button(
+            onClick = {
+                val lat = latitude.trim().toDoubleOrNull()
+                val lon = longitude.trim().toDoubleOrNull()
+                if (lat != null && lon != null && lat in -90.0..90.0 && lon in -180.0..180.0) {
+                    error = null
+                    onLocation(LatLon(lat, lon))
+                } else {
+                    error = "Enter a latitude from -90 to 90 and a longitude from -180 to 180."
+                }
+            },
+            modifier = Modifier.heightIn(min = 48.dp),
+        ) { Text("Use this location") }
     }
 }
 

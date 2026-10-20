@@ -1,5 +1,6 @@
 package com.nearwise.data
 
+import com.nearwise.domain.LatLon
 import com.nearwise.domain.PoiCategory
 import com.nearwise.platform.KeyValueStore
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,8 @@ data class AppSettings(
     val watchInBackground: Boolean = false,
     /** Testing switch that pretends a car is connected. */
     val simulateCar: Boolean = false,
+    /** Testing: a position to use instead of the GPS fix. Null means the real location. */
+    val testLocation: LatLon? = null,
 )
 
 class SettingsStore(private val store: KeyValueStore, private val clock: () -> Long) {
@@ -33,6 +36,8 @@ class SettingsStore(private val store: KeyValueStore, private val clock: () -> L
         store.putString(KEY_WATCH, next.watchInBackground.toString())
         store.putString(KEY_SIMULATE, next.simulateCar.toString())
         store.putString(KEY_THEME, next.themeMode.name)
+        store.putString(KEY_TEST_LAT, next.testLocation?.lat?.toString())
+        store.putString(KEY_TEST_LON, next.testLocation?.lon?.toString())
         _settings.value = next
     }
 
@@ -44,6 +49,12 @@ class SettingsStore(private val store: KeyValueStore, private val clock: () -> L
     }
 
     fun dismissedIds(): Set<String> = liveDismissals(clock()).map { it.first }.toSet()
+
+    /** Shows a suggestion that was hidden with Next again. */
+    fun undismiss(id: String) {
+        val live = liveDismissals(clock()).filter { it.first != id }
+        store.putString(KEY_DISMISSED, live.joinToString("\n") { "${it.first}|${it.second}" })
+    }
 
     fun clearDismissed() = store.putString(KEY_DISMISSED, null)
 
@@ -72,7 +83,14 @@ class SettingsStore(private val store: KeyValueStore, private val clock: () -> L
             simulateCar = store.getString(KEY_SIMULATE)?.toBooleanStrictOrNull() ?: defaults.simulateCar,
             themeMode = store.getString(KEY_THEME)?.let { name -> ThemeMode.entries.firstOrNull { it.name == name } }
                 ?: defaults.themeMode,
+            testLocation = readTestLocation(),
         )
+    }
+
+    private fun readTestLocation(): LatLon? {
+        val lat = store.getString(KEY_TEST_LAT)?.toDoubleOrNull() ?: return null
+        val lon = store.getString(KEY_TEST_LON)?.toDoubleOrNull() ?: return null
+        return LatLon(lat, lon)
     }
 
     private companion object {
@@ -84,5 +102,7 @@ class SettingsStore(private val store: KeyValueStore, private val clock: () -> L
         const val KEY_SIMULATE = "simulate_car"
         const val KEY_DISMISSED = "dismissed"
         const val KEY_THEME = "theme_mode"
+        const val KEY_TEST_LAT = "test_lat"
+        const val KEY_TEST_LON = "test_lon"
     }
 }
