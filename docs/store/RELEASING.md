@@ -37,7 +37,6 @@
 | File | Use |
 | --- | --- |
 | `play-icon-512.png` | Play Console hi-res icon (512 × 512) |
-| `app-store-1024.png` | App icon for the iOS App Store (1024 × 1024) |
 | `screenshot-phone-card.png` | Phone screenshot. Play asks for at least two; capture more from a phone or emulator |
 | `LISTING.md` | Title, descriptions, data-safety answers and release notes |
 | `PRIVACY_POLICY.md` | Privacy policy text. Publish it at a public URL and link it in Play Console |
