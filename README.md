@@ -1,6 +1,6 @@
-# Near Wise
+# Near Gem
 
-Near Wise tells you about interesting places close to where you are: a restaurant, a café, a bar, or a landmark with a short read-aloud summary. It works for drivers and for people on foot. It shows the distance, which way the place is, and roughly how long it takes to walk or drive there.
+Near Gem tells you about interesting places close to where you are: a restaurant, a café, a bar, or a landmark with a short read-aloud summary. It works for drivers and for people on foot. It shows the distance, which way the place is, and roughly how long it takes to walk or drive there.
 
 ![Phone: suggestion card with photo, direction pointer and actions](docs/screenshots/phone-suggestion.png)
 
@@ -98,7 +98,7 @@ The iOS app is in `iosApp/`. See `iosApp/README.md` for the Xcode steps.
 - **Movement end-to-end test** (`MovementE2ETest`). It walks from a cafe towards a restaurant in 10 GPS fixes, with fake GPS and a fake network. It checks that the top card switches at the expected point and that the distance follows the walker on each fix. It also checks that dismissing places empties the queue.
 - **Integration tests** (`DriveContainerTest`, `PreviousSuggestionTest`). They run the real container and repository with the fake platform. They cover the test location replacing GPS (including live fixes while the screen is on), clearing it, and Back bringing back the last place passed with Next.
 - **Settings tests** (`SettingsStoreTest`). The test location is saved and cleared across restarts, and a dismissed place comes back after 12 hours or when undismissed.
-- **Screen tests on a device** (`NearwiseScreensTest`, in `androidTest`). They run the real screens: "Read more" opens the modal and Close returns to the card, Back brings back the previous place, system back on Settings returns to the suggestions instead of closing the app, and test mode shows its presets.
+- **Screen tests on a device** (`NearGemScreensTest`, in `androidTest`). They run the real screens: "Read more" opens the modal and Close returns to the card, Back brings back the previous place, system back on Settings returns to the suggestions instead of closing the app, and test mode shows its presets.
 
 The fakes shared by these tests live in `androidApp/src/sharedTest/kotlin`. Run the JVM tests with `.\gradlew.bat :androidApp:testDebugUnitTest`. Run the screen tests on a running emulator or device with `.\gradlew.bat :androidApp:connectedDebugAndroidTest` (set `ANDROID_SERIAL` to pick one device).
 

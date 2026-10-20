@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Nearwise"
+rootProject.name = "NearGem"
 include(":shared", ":androidApp")
