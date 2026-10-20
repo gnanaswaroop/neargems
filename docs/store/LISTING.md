@@ -1,12 +1,12 @@
 # Play Store listing (draft)
 
-**App name:** Nearwise
+**App name:** Near Wise
 
 **Short description (80 characters max):**
 Nearby places with a read-aloud summary, for drivers and people on foot.
 
 **Full description:**
-Nearwise tells you about interesting places close to where you are: a restaurant, a café, a bar,
+Near Wise tells you about interesting places close to where you are: a restaurant, a café, a bar,
 or a landmark, with a short summary you can have read aloud.
 
 - Suggestions ranked by how interesting they are, minus a penalty for distance, so a nearby good
@@ -20,7 +20,7 @@ or a landmark, with a short summary you can have read aloud.
 - A visit history, kept only on your phone.
 - Light, dark, or system theme.
 
-Places come from OpenStreetMap and Wikipedia. Nearwise does not show ads.
+Places come from OpenStreetMap and Wikipedia. Near Wise does not show ads.
 
 **Category:** Travel & Local
 

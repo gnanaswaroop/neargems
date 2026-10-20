@@ -1,4 +1,4 @@
-# Releasing Nearwise to Google Play
+# Releasing Near Wise to Google Play
 
 ## One-time setup
 

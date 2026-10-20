@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleDisplayName</key>
-    <string>Nearwise</string>
+    <string>Near Wise</string>
     <key>CFBundleIdentifier</key>
     <string>com.nearwise.app</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Nearwise uses your location to find places close to you and to show which way they are.</string>
+    <string>Near Wise uses your location to find places close to you and to show which way they are.</string>
     <key>UILaunchScreen</key>
     <dict/>
 </dict>
