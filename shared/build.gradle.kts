@@ -40,6 +40,7 @@ kotlin {
             implementation("io.coil-kt.coil3:coil-network-ktor3:3.6.3")
         }
         androidMain.dependencies {
+            implementation("androidx.activity:activity-compose:1.10.1")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
         }
         iosMain.dependencies {

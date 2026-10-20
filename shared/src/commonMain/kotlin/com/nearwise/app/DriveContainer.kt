@@ -10,6 +10,7 @@ import com.nearwise.data.SettingsStore
 import com.nearwise.data.Visit
 import com.nearwise.data.VisitStore
 import com.nearwise.data.WikipediaSource
+import com.nearwise.domain.LatLon
 import com.nearwise.domain.Poi
 import com.nearwise.platform.KeyValueStore
 import com.nearwise.platform.HeadingSource
@@ -29,6 +30,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -55,7 +57,14 @@ class DriveContainer(platform: PlatformServices) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val narrator = platform.narrator
     private val maps = platform.maps
-    private val location = platform.location
+    /** The GPS, unless test mode has chosen a position to use instead. */
+    private val location: LocationSource = object : LocationSource {
+        override suspend fun current(): LatLon? = settings.settings.value.testLocation ?: platform.location.current()
+
+        override fun updates(): Flow<LatLon> = platform.location.updates().map { fix ->
+            settings.settings.value.testLocation ?: fix
+        }
+    }
 
     private val clock = platform.clock
 
@@ -71,7 +80,7 @@ class DriveContainer(platform: PlatformServices) {
             overpass = OverpassSource(Http(platform.http)),
             wikipedia = WikipediaSource(Http(platform.http), platform.language),
         ),
-        location = platform.location,
+        location = location,
         narrator = platform.narrator,
         visits = visitStore,
     )
@@ -138,6 +147,10 @@ class DriveContainer(platform: PlatformServices) {
 
     fun next() {
         scope.launch { repository.next(announce = shouldAnnounce()) }
+    }
+
+    fun previous() {
+        scope.launch { repository.previous(announce = shouldAnnounce()) }
     }
 
     fun speakCurrent() = repository.speakCurrent()

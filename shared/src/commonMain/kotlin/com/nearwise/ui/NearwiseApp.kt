@@ -5,6 +5,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -38,12 +40,14 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -66,9 +70,12 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.SubcomposeAsyncImage
@@ -101,6 +108,15 @@ private val TWO_PANE_MIN_WIDTH = 600.dp
 /** Snippets longer than this get a "Read more" link; shorter ones always fit. */
 private const val SNIPPET_FOLD_CHARS = 130
 
+/** Share of the card's height given to the mini map when there is room for it. */
+private const val MAP_SHARE = 0.25f
+
+/** Height taken by the category, title, distance, buttons and padding, leaving the rest for text. */
+private val CARD_CHROME = 230.dp
+
+/** Height of one line of the snippet body. */
+private val SNIPPET_LINE_HEIGHT = 25.dp
+
 /** Up to this many places, the swipe cue shows one dot per place. */
 private const val MAX_DOTS = 7
 
@@ -110,7 +126,7 @@ private const val ONE_DAY_MILLIS = 24L * 60 * 60 * 1000
 /**
  * The whole app UI, shared by every screen size. Phones get one column with the places in a
  * swipeable pager; wider screens get the queue on the left and the places on the right.
- * Nothing scrolls the page itself: the layout fits the screen, and only an expanded card scrolls.
+ * Nothing scrolls the page itself: the layout fits the screen. Full text opens in a modal.
  * [onStart] runs once on launch (Android asks for location permission there, then refreshes).
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -129,11 +145,13 @@ fun NearwiseApp(
     val heading by container.headingDegrees.collectAsState()
     val visits by container.visits.collectAsState()
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    PlatformBackHandler(enabled = showSettings) { showSettings = false }
 
     LaunchedEffect(Unit) { onStart() }
 
     val actions = Actions(
         onNext = container::next,
+        onPrevious = container::previous,
         onSpeak = container::speakCurrent,
         onOpenMap = container::openMap,
         onRefresh = container::refresh,
@@ -195,7 +213,7 @@ fun NearwiseApp(
                                 actions = actions,
                                 modifier = Modifier.weight(1f).fillMaxWidth(),
                             )
-                            state.current?.let { ActionBar(it.poi, actions) }
+                            state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
                         }
                     }
                 } else {
@@ -208,7 +226,7 @@ fun NearwiseApp(
                         actions = actions,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                     )
-                    state.current?.let { ActionBar(it.poi, actions) }
+                    state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
                 }
             }
         }
@@ -275,6 +293,7 @@ private fun LocationRequiredScreen(onAllow: () -> Unit, onOpenSettings: () -> Un
 /** Callbacks the suggestion views call. Grouped so the composables stay short. */
 private class Actions(
     val onNext: () -> Unit,
+    val onPrevious: () -> Unit,
     val onSpeak: () -> Unit,
     val onOpenMap: (Poi) -> Unit,
     val onRefresh: () -> Unit,
@@ -497,7 +516,7 @@ private fun SwipeCue(page: Int, count: Int) {
 
 /**
  * One place. Photo and map shrink, and then disappear, as the available height drops, so a small
- * phone fits the card without scrolling. Only an expanded text scrolls the card.
+ * phone fits the card without scrolling. The full text opens in a modal instead.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -511,24 +530,25 @@ private fun SuggestionCard(
 ) {
     val poi = ranked.poi
     val shape = RoundedCornerShape(20.dp)
-    // Remembered per place, so a card stays expanded across GPS updates but starts folded for a new place.
-    var expanded by rememberSaveable(poi.id) { mutableStateOf(false) }
-    val scroll = rememberScrollState()
+    // Remembered per place, so the modal stays open across GPS updates and starts closed for a new place.
+    var detailOpen by rememberSaveable(poi.id) { mutableStateOf(false) }
     val h = availableHeight
+    // The map takes a share of whatever height the card has, and the text gets the rest.
     val photoHeight = when {
         large -> 220.dp
+        h >= 700.dp -> 200.dp
         h >= 560.dp -> 150.dp
         h >= 460.dp -> 96.dp
         else -> 0.dp
     }
     val mapHeight = when {
         large -> 150.dp
-        h >= 430.dp -> 110.dp
-        h >= 340.dp -> 80.dp
+        h >= 340.dp -> (h * MAP_SHARE).coerceIn(80.dp, 260.dp)
         else -> 0.dp
     }
-    val foldLines = if (large || h >= 460.dp) 3 else 2
-    val folded = !expanded && poi.snippet.length > SNIPPET_FOLD_CHARS
+    val textSpace = h - photoHeight - mapHeight - CARD_CHROME
+    val foldLines = (textSpace / SNIPPET_LINE_HEIGHT).toInt().coerceIn(2, 12)
+    val folded = poi.snippet.length > SNIPPET_FOLD_CHARS
 
     Column(
         modifier = Modifier
@@ -536,12 +556,13 @@ private fun SuggestionCard(
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
-            .padding(if (large) 20.dp else 16.dp)
-            .verticalScroll(scroll, enabled = expanded),
+            .padding(if (large) 20.dp else 16.dp),
         verticalArrangement = Arrangement.spacedBy(if (large) 10.dp else 8.dp),
     ) {
         if (photoHeight > 0.dp) {
-            poi.photo?.let { photo -> PhotoBlock(photo, poi.name, photoHeight, actions) }
+            poi.photo?.let { photo ->
+                PhotoBlock(photo, poi.name, photoHeight, actions, onPhotoClick = { detailOpen = true })
+            }
         }
         Text(
             buildString {
@@ -561,16 +582,16 @@ private fun SuggestionCard(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.semantics { heading() },
         )
-        // Collapsed: a few lines that fade out at the bottom. Expanded: the whole text, and the card scrolls.
+        // A few lines that fade out at the bottom. Tapping the text opens the whole of it.
         Box(modifier = Modifier.fillMaxWidth()) {
             Text(
                 poi.snippet,
                 style = MaterialTheme.typography.bodyLarge,
                 fontSize = 17.sp,
                 lineHeight = 25.sp,
-                maxLines = if (expanded) Int.MAX_VALUE else foldLines,
+                maxLines = foldLines,
                 overflow = TextOverflow.Clip,
-                modifier = Modifier.semantics { role = Role.Button }.clickable { expanded = !expanded },
+                modifier = Modifier.semantics { role = Role.Button }.clickable { detailOpen = true },
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
             )
             if (folded) {
@@ -589,15 +610,72 @@ private fun SuggestionCard(
         }
         if (poi.snippet.length > SNIPPET_FOLD_CHARS) {
             Text(
-                if (expanded) "Show less" else "Read more",
+                "Read more",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.semantics { role = Role.Button }.clickable { expanded = !expanded },
+                modifier = Modifier.semantics { role = Role.Button }.clickable { detailOpen = true },
             )
         }
         DistanceDetails(ranked, from, heading)
         if (mapHeight > 0.dp) {
             from?.let { MiniMap(from = it, to = poi.location, height = mapHeight) }
+        }
+    }
+    if (detailOpen) {
+        PlaceDetailDialog(poi, actions) { detailOpen = false }
+    }
+}
+
+/**
+ * The whole place in a modal over the list: the photo, the full text, and a way back. Closing it
+ * leaves the list where it was, so swiping still works afterwards.
+ */
+@Composable
+private fun PlaceDetailDialog(poi: Poi, actions: Actions, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        val shape = RoundedCornerShape(20.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .heightIn(max = 640.dp)
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
+                .padding(20.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            poi.photo?.let { photo -> PhotoBlock(photo, poi.name, 220.dp, actions, onPhotoClick = {}) }
+            Text(
+                poi.category.label.uppercase(),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                poi.name,
+                fontFamily = displayFont(),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 30.sp,
+                lineHeight = 36.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.semantics { heading() },
+            )
+            Text(
+                poi.snippet,
+                style = MaterialTheme.typography.bodyLarge,
+                fontSize = 17.sp,
+                lineHeight = 25.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
+            )
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                shape = RoundedCornerShape(50),
+            ) { Text("Close") }
         }
     }
 }
@@ -607,11 +685,17 @@ private fun SuggestionCard(
  * holds keeps the buttons where the thumb expects them.
  */
 @Composable
-private fun ActionBar(poi: Poi, actions: Actions) {
+private fun ActionBar(actions: Actions, canGoBack: Boolean) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
     ) {
+        OutlinedButton(
+            onClick = actions.onPrevious,
+            enabled = canGoBack,
+            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+            shape = RoundedCornerShape(50),
+        ) { Text("Back") }
         Button(
             onClick = actions.onSpeak,
             modifier = Modifier.weight(1.6f).heightIn(min = 48.dp),
@@ -687,7 +771,7 @@ private fun CompassPointer(relativeDegrees: Float) {
  * line opens the file page, where the image's licence is listed.
  */
 @Composable
-private fun PhotoBlock(photo: Photo, name: String, height: Dp, actions: Actions) {
+private fun PhotoBlock(photo: Photo, name: String, height: Dp, actions: Actions, onPhotoClick: () -> Unit) {
     val placeholder: @Composable (String) -> Unit = { label ->
         Box(
             modifier = Modifier
@@ -705,7 +789,8 @@ private fun PhotoBlock(photo: Photo, name: String, height: Dp, actions: Actions)
         modifier = Modifier
             .fillMaxWidth()
             .height(height)
-            .clip(RoundedCornerShape(14.dp)),
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onPhotoClick),
         loading = { placeholder("Loading photo…") },
         error = { placeholder("Photo unavailable") },
     )
@@ -846,6 +931,76 @@ private fun SettingsPanel(
             checked = settings.simulateCar,
             onChange = { on -> onSettings { it.copy(simulateCar = on) } },
         )
+
+        SectionTitle("Testing location")
+        SwitchRow(
+            label = "Use a chosen location instead of GPS",
+            checked = settings.testLocation != null,
+            onChange = { on -> onSettings { it.copy(testLocation = if (on) it.testLocation ?: TEST_PRESETS.first().second else null) } },
+        )
+        settings.testLocation?.let { location ->
+            TestLocationEditor(location) { chosen -> onSettings { it.copy(testLocation = chosen) } }
+        }
+    }
+}
+
+/** Places a test location can be set to, for trying the suggestions without walking anywhere. */
+private val TEST_PRESETS = listOf(
+    "Trafalgar Square" to LatLon(51.5080, -0.1281),
+    "Oxford Circus" to LatLon(51.5152, -0.1419),
+    "Tower Bridge" to LatLon(51.5055, -0.0754),
+)
+
+/** Presets and typed coordinates for the test location. Suggestions update as soon as one is set. */
+@Composable
+private fun TestLocationEditor(location: LatLon, onLocation: (LatLon) -> Unit) {
+    var latitude by remember(location) { mutableStateOf(location.lat.toString()) }
+    var longitude by remember(location) { mutableStateOf(location.lon.toString()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TEST_PRESETS.forEach { (name, point) ->
+                FilterChip(
+                    selected = point == location,
+                    onClick = { onLocation(point) },
+                    label = { Text(name) },
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = latitude,
+                onValueChange = { latitude = it },
+                label = { Text("Latitude") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedTextField(
+                value = longitude,
+                onValueChange = { longitude = it },
+                label = { Text("Longitude") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+        }
+        error?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+        Button(
+            onClick = {
+                val lat = latitude.trim().toDoubleOrNull()
+                val lon = longitude.trim().toDoubleOrNull()
+                if (lat != null && lon != null && lat in -90.0..90.0 && lon in -180.0..180.0) {
+                    error = null
+                    onLocation(LatLon(lat, lon))
+                } else {
+                    error = "Enter a latitude from -90 to 90 and a longitude from -180 to 180."
+                }
+            },
+            modifier = Modifier.heightIn(min = 48.dp),
+        ) { Text("Use this location") }
     }
 }
 
@@ -878,12 +1033,16 @@ private fun SectionTitle(text: String) {
 
 @Composable
 private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    // The whole row is the switch, so a tap anywhere on the label works too.
     Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).padding(end = 12.dp))
-        Switch(checked = checked, onCheckedChange = onChange)
+        Switch(checked = checked, onCheckedChange = null)
     }
 }

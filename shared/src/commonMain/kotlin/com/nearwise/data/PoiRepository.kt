@@ -28,6 +28,8 @@ data class PoiState(
     val message: String? = null,
     /** Where the device was at the last fix, so the UI can show live direction and time. */
     val position: LatLon? = null,
+    /** True when a place passed with Next can be brought back with [PoiRepository.previous]. */
+    val hasPrevious: Boolean = false,
 )
 
 class PoiRepository(
@@ -47,6 +49,8 @@ class PoiRepository(
     private var fetchedFor: FetchKey? = null
     private var candidates: List<com.nearwise.domain.Poi> = emptyList()
     private var announcedId: String? = null
+    /** Places passed with Next this session, most recent last, so they can be brought back. */
+    private val passed = ArrayDeque<String>()
 
     /**
      * Re-reads the device location. Places are only re-queried after moving [REFETCH_METERS]
@@ -97,6 +101,16 @@ class PoiRepository(
         mutex.withLock {
             val shown = _state.value.current ?: return
             settings.dismiss(shown.poi.id)
+            passed.addLast(shown.poi.id)
+            publish(settings.settings.value.radiusMeters, announce)
+        }
+    }
+
+    /** Brings back the place passed with the last Next, and shows it again. */
+    suspend fun previous(announce: Boolean) {
+        mutex.withLock {
+            val id = passed.removeLastOrNull() ?: return
+            settings.undismiss(id)
             publish(settings.settings.value.radiusMeters, announce)
         }
     }
@@ -123,9 +137,18 @@ class PoiRepository(
                 queued = ranked.size - 1,
                 upcoming = ranked.drop(1),
                 position = origin,
+                hasPrevious = passed.isNotEmpty(),
             )
-            candidates.isEmpty() -> PoiState(message = "No places found within $radiusMeters m.", position = origin)
-            else -> PoiState(message = "No more suggestions nearby.", position = origin)
+            candidates.isEmpty() -> PoiState(
+                message = "No places found within $radiusMeters m.",
+                position = origin,
+                hasPrevious = passed.isNotEmpty(),
+            )
+            else -> PoiState(
+                message = "No more suggestions nearby.",
+                position = origin,
+                hasPrevious = passed.isNotEmpty(),
+            )
         }
         if (top != null && announce && top.poi.id != announcedId) {
             announcedId = top.poi.id
