@@ -1,4 +1,4 @@
-# Releasing Near Gem to Google Play
+# Releasing Near Gems to Google Play
 
 ## One-time setup
 
