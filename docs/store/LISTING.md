@@ -1,6 +1,6 @@
 # Play Store listing (draft)
 
-**App name:** Near Gems
+**App name:** NearGems (no space: the launcher truncates a longer name)
 
 **Short description (80 characters max):**
 Nearby places with a read-aloud summary, for drivers and people on foot.
