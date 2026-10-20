@@ -8,7 +8,7 @@ plugins {
 
 kotlin {
     android {
-        namespace = "com.neargem.shared"
+        namespace = "com.neargems.shared"
         compileSdk = 37
         minSdk = 26
     }
@@ -53,7 +53,7 @@ kotlin {
 }
 
 compose.resources {
-    packageOfResClass = "com.neargem.shared.generated.resources"
+    packageOfResClass = "com.neargems.shared.generated.resources"
 }
 
 // The Android library does not wire Compose resources into its assets, so the copy goes to a

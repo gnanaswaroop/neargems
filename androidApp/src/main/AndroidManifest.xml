@@ -9,17 +9,17 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-        android:name="com.neargem.android.NearGemApplication"
+        android:name="com.neargems.android.NearGemsApplication"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.NearGem">
+        android:theme="@style/Theme.NearGems">
 
         <activity
-            android:name="com.neargem.android.MainActivity"
+            android:name="com.neargems.android.MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.NearGem">
+            android:theme="@style/Theme.NearGems">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -27,7 +27,7 @@
         </activity>
 
         <service
-            android:name="com.neargem.android.service.CarWatchService"
+            android:name="com.neargems.android.service.CarWatchService"
             android:exported="false"
             android:foregroundServiceType="location" />
     </application>

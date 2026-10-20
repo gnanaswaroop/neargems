@@ -3,18 +3,18 @@
 ## One-time setup
 
 1. **Upload key.** The release is signed with an upload key. Its keystore and passwords are kept
-   outside the repository, in `%USERPROFILE%\.neargem\`:
-   - `neargem-upload.jks`: the keystore
+   outside the repository, in `%USERPROFILE%\.neargems\`:
+   - `neargems-upload.jks`: the keystore
    - `upload-signing.properties`: the paths and passwords that Gradle reads
 
    Back both files up somewhere safe (a password manager, plus an encrypted copy). Without them
    the app cannot be updated under the same listing. Play App Signing keeps the real app-signing
    key on Google's side, and the upload key can be reset through Play Console if it is lost.
 
-   To make the same key on another machine, copy both files into `%USERPROFILE%\.neargem\`.
+   To make the same key on another machine, copy both files into `%USERPROFILE%\.neargems\`.
    Never commit them.
 
-2. **Play Console.** Create the app with the package name `com.neargem.app`, enrol in Play App
+2. **Play Console.** Create the app with the package name `com.neargems.app`, enrol in Play App
    Signing, and upload the first bundle to the Internal testing track.
 
 ## Each release

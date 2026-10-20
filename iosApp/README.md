@@ -4,13 +4,13 @@ The iOS app is a thin host. Every screen and every piece of logic comes from the
 
 The Swift files here are the only iOS code:
 
-- `Near Gems/NearGemApp.swift`: the SwiftUI app entry point.
+- `Near Gems/NearGemsApp.swift`: the SwiftUI app entry point.
 - `Near Gems/ComposeScreen.swift`: hosts the Compose screen from the `Shared` framework.
 - `Near Gems/Info.plist`: the location-permission text and bundle identifier.
 
 ## Building (needs a Mac with Xcode)
 
-1. Create an iOS app project in Xcode named `Near Gems` with bundle identifier `com.neargem.app`. Add the files above to it.
+1. Create an iOS app project in Xcode named `Near Gems` with bundle identifier `com.neargems.app`. Add the files above to it.
 2. Add a Run Script build phase that runs `./gradlew :shared:embedAndSignAppleFrameworkForXcode` from the repository root. It builds the `Shared` framework for the selected simulator or device.
 3. Add `Shared.framework` from the `shared/build` output to the target's frameworks.
 4. Build and run on an iOS simulator.

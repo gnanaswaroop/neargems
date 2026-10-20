@@ -7,16 +7,16 @@ plugins {
 
 // The upload key lives outside the repo, so it is never committed. See docs/store/RELEASING.md.
 val uploadSigning = Properties().apply {
-    val file = File(System.getProperty("user.home"), ".neargem/upload-signing.properties")
+    val file = File(System.getProperty("user.home"), ".neargems/upload-signing.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
 android {
-    namespace = "com.neargem.android"
+    namespace = "com.neargems.android"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.neargem.app"
+        applicationId = "com.neargems.app"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
