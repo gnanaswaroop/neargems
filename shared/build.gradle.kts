@@ -55,3 +55,11 @@ kotlin {
 compose.resources {
     packageOfResClass = "com.nearwise.shared.generated.resources"
 }
+
+// The Android library does not wire Compose resources into its assets, so the copy goes to a
+// build folder that the app reads from. See androidApp/build.gradle.kts.
+tasks.matching { it.name == "copyAndroidMainComposeResourcesToAndroidAssets" }.configureEach {
+    withGroovyBuilder {
+        setProperty("outputDirectory", layout.buildDirectory.dir("generated/compose/androidAssets").get().asFile)
+    }
+}
