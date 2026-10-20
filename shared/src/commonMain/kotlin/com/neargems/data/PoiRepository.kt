@@ -30,6 +30,8 @@ data class PoiState(
     val position: LatLon? = null,
     /** True when a place passed with Next can be brought back with [PoiRepository.previous]. */
     val hasPrevious: Boolean = false,
+    /** The place [PoiRepository.previous] would bring back, measured from the last fix, or null. */
+    val previous: RankedPoi? = null,
 )
 
 class PoiRepository(
@@ -50,7 +52,7 @@ class PoiRepository(
     private var candidates: List<com.neargems.domain.Poi> = emptyList()
     private var announcedId: String? = null
     /** Places passed with Next this session, most recent last, so they can be brought back. */
-    private val passed = ArrayDeque<String>()
+    private val passed = ArrayDeque<RankedPoi>()
 
     /**
      * Re-reads the device location. Places are only re-queried after moving [REFETCH_METERS]
@@ -101,7 +103,7 @@ class PoiRepository(
         mutex.withLock {
             val shown = _state.value.current ?: return
             settings.dismiss(shown.poi.id)
-            passed.addLast(shown.poi.id)
+            passed.addLast(shown)
             publish(settings.settings.value.radiusMeters, announce)
         }
     }
@@ -109,8 +111,8 @@ class PoiRepository(
     /** Brings back the place passed with the last Next, and shows it again. */
     suspend fun previous(announce: Boolean) {
         mutex.withLock {
-            val id = passed.removeLastOrNull() ?: return
-            settings.undismiss(id)
+            val back = passed.removeLastOrNull() ?: return
+            settings.undismiss(back.poi.id)
             publish(settings.settings.value.radiusMeters, announce)
         }
     }
@@ -131,6 +133,8 @@ class PoiRepository(
         val ranked = PoiRanker.rank(candidates, origin, radiusMeters, settings.dismissedIds())
         recordArrivals(ranked)
         val top = ranked.firstOrNull()
+        // The place Back would bring back is dismissed, so it is ranked on its own to get a fresh distance.
+        val previous = passed.lastOrNull()?.let { PoiRanker.rank(listOf(it.poi), origin, radiusMeters, emptySet()).firstOrNull() }
         _state.value = when {
             top != null -> PoiState(
                 current = top,
@@ -138,16 +142,19 @@ class PoiRepository(
                 upcoming = ranked.drop(1),
                 position = origin,
                 hasPrevious = passed.isNotEmpty(),
+                previous = previous,
             )
             candidates.isEmpty() -> PoiState(
                 message = "No places found within $radiusMeters m.",
                 position = origin,
                 hasPrevious = passed.isNotEmpty(),
+                previous = previous,
             )
             else -> PoiState(
                 message = "No more suggestions nearby.",
                 position = origin,
                 hasPrevious = passed.isNotEmpty(),
+                previous = previous,
             )
         }
         if (top != null && announce && top.poi.id != announcedId) {

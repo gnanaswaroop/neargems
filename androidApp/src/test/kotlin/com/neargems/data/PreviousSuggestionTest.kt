@@ -20,10 +20,12 @@ class PreviousSuggestionTest {
         repository.next(announce = false)
         assertEquals(Fixtures.RESTAURANT_NAME, repository.state.value.current?.poi?.name)
         assertTrue(repository.state.value.hasPrevious)
+        assertEquals(Fixtures.CAFE_NAME, repository.state.value.previous?.poi?.name)
 
         repository.previous(announce = false)
         assertEquals(Fixtures.CAFE_NAME, repository.state.value.current?.poi?.name)
         assertFalse(repository.state.value.hasPrevious)
+        assertNull(repository.state.value.previous)
     }
 
     @Test

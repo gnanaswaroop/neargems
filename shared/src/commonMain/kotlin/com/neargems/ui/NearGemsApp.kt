@@ -484,6 +484,7 @@ private fun SuggestionArea(
     when {
         places.isNotEmpty() -> SuggestionPager(
             places = places,
+            previous = state.previous,
             from = from,
             heading = heading,
             large = large,
@@ -504,35 +505,46 @@ private fun SuggestionArea(
 }
 
 /**
- * The places as swipeable cards. Swipe right to left to see the next place; the next card peeks in
- * from the edge and a cue shows where you are in the list. The top pick returns to the first card
- * whenever it changes.
+ * The places as swipeable cards. Swipe right to left to see the next place, and right to go back to
+ * the last one passed with Next. Each neighbour peeks in from its edge, and a cue shows where you
+ * are in the list. The top pick returns to the first card whenever it changes.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SuggestionPager(
     places: List<RankedPoi>,
+    previous: RankedPoi?,
     from: LatLon?,
     heading: Float?,
     large: Boolean,
     actions: Actions,
     modifier: Modifier,
 ) {
-    val pagerState = rememberPagerState(pageCount = { places.size })
+    // The place Back brings back is the page on the left, so a swipe right goes back as a swipe left goes on.
+    val pages = listOfNotNull(previous) + places
+    val offset = pages.size - places.size
+    val pagerState = rememberPagerState(initialPage = offset, pageCount = { pages.size })
     val topId = places.firstOrNull()?.poi?.id
-    LaunchedEffect(topId) { pagerState.scrollToPage(0) }
+    LaunchedEffect(topId) { pagerState.scrollToPage(offset) }
+    // Landing on the left-hand page means the user swiped back to it, so bring that place back.
+    LaunchedEffect(pagerState.settledPage) {
+        if (offset == 1 && pagerState.settledPage == 0) actions.onPrevious()
+    }
 
     Column(modifier = modifier) {
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(end = if (places.size > 1) 28.dp else 0.dp),
+            contentPadding = PaddingValues(
+                start = if (offset == 1) 28.dp else 0.dp,
+                end = if (places.size > 1) 28.dp else 0.dp,
+            ),
             pageSpacing = 12.dp,
-            key = { page -> places[page].poi.id },
+            key = { page -> pages[page].poi.id },
         ) { page ->
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 SuggestionCard(
-                    ranked = places[page],
+                    ranked = pages[page],
                     large = large,
                     from = from,
                     heading = heading,
@@ -541,19 +553,30 @@ private fun SuggestionPager(
                 )
             }
         }
-        SwipeCue(page = pagerState.currentPage, count = places.size)
+        SwipeCue(
+            page = (pagerState.currentPage - offset).coerceAtLeast(0),
+            count = places.size,
+            back = offset == 1,
+        )
     }
 }
 
-/** Dots (or a count) and a hint, so it is clear that there are more places to swipe through. */
+/** Dots (or a count) and a hint, so it is clear that there are more places to swipe through or back to. */
 @Composable
-private fun SwipeCue(page: Int, count: Int) {
-    if (count <= 1) return
+private fun SwipeCue(page: Int, count: Int, back: Boolean) {
+    if (count <= 1 && !back) return
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
+        if (back) {
+            Text(
+                if (count > 1) "‹ back  ·  " else "‹ back",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
         if (count <= MAX_DOTS) {
             repeat(count) { index ->
                 val selected = index == page
@@ -570,7 +593,7 @@ private fun SwipeCue(page: Int, count: Int) {
             Spacer(Modifier.width(8.dp))
         }
         Text(
-            "${page + 1} of $count · swipe for more",
+            if (count > 1) "${page + 1} of $count · swipe for more" else "",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
