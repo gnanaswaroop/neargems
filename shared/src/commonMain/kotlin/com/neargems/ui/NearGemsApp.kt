@@ -631,15 +631,15 @@ private fun SuggestionCard(
     var photoOpen by rememberSaveable(poi.id) { mutableStateOf(false) }
     val h = availableHeight
     // The map takes a share of whatever height the card has, and the text gets the rest.
+    // Landscape phones and short windows get a smaller photo and map, so the text still fits.
     val photoHeight = when {
-        large -> 220.dp
-        h >= 700.dp -> 200.dp
+        h >= 700.dp -> if (large) 220.dp else 200.dp
         h >= 560.dp -> 150.dp
         h >= 460.dp -> 96.dp
         else -> 0.dp
     }
     val mapHeight = when {
-        large -> 150.dp
+        large && h >= 560.dp -> 150.dp
         h >= 340.dp -> (h * MAP_SHARE).coerceIn(80.dp, 260.dp)
         else -> 0.dp
     }
@@ -648,13 +648,15 @@ private fun SuggestionCard(
     // Only whole sentences that fit the space the card has; the full text is one tap away.
     val collapsed = summarise(poi.snippet, maxChars = foldLines * SNIPPET_CHARS_PER_LINE)
 
+    // If the text still does not fit a very short window, the card scrolls rather than cutting it off.
     Column(
         modifier = Modifier
             .fillMaxSize()
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
-            .padding(if (large) 20.dp else 16.dp),
+            .padding(if (large) 20.dp else 16.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(if (large) 10.dp else 8.dp),
     ) {
         if (photoHeight > 0.dp) {
