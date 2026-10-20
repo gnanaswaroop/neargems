@@ -51,8 +51,12 @@ android {
         unitTests.isReturnDefaultValues = false
     }
 
-    // Test fakes live in one folder and are compiled into both the JVM and the on-device tests.
     sourceSets {
+        // Compose resources (the logo and the fonts) come from the shared module as assets.
+        getByName("main") {
+            assets.srcDir(project(":shared").layout.buildDirectory.dir("generated/compose/androidAssets").get().asFile)
+        }
+        // Test fakes live in one folder and are compiled into both the JVM and the on-device tests.
         getByName("test") { kotlin.srcDir("src/sharedTest/kotlin") }
         getByName("androidTest") { kotlin.srcDir("src/sharedTest/kotlin") }
     }
@@ -84,4 +88,8 @@ dependencies {
     androidTestImplementation("io.ktor:ktor-client-mock:3.6.0")
     androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     debugImplementation("androidx.compose.ui:ui-test-manifest:1.12.1")
+}
+
+tasks.named("preBuild") {
+    dependsOn(":shared:copyAndroidMainComposeResourcesToAndroidAssets")
 }
