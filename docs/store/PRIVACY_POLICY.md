@@ -8,9 +8,15 @@ information.
 ## Location
 
 Near Gems asks for your location so it can find nearby places and show how far away they are and
-which way they are. Your location is used on your device. The app sends your approximate position
-to the OpenStreetMap Overpass API and to Wikipedia when it looks for places, and to
-tile.openstreetmap.org when it shows the map. The developer does not receive or store your location.
+which way they are. Before Android asks for permission, the app explains this on its own screen.
+
+While the app is open, your position is sent to the OpenStreetMap Overpass API and to Wikipedia
+when it looks for places, and to tile.openstreetmap.org when it shows the map. The developer does
+not receive or store your location.
+
+If you turn on car watch in Settings, Near Gems keeps checking your location in the background,
+with a notification shown while it does, so it can announce places when your car connects. Turn it
+off to stop this. Near Gems does not use background location for advertising or tracking.
 
 If you turn off location, Near Gems cannot show suggestions.
 

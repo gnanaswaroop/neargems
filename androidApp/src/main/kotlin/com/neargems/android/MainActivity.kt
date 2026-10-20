@@ -18,6 +18,9 @@ class MainActivity : ComponentActivity() {
     private val container: DriveContainer
         get() = (application as NearGemsApplication).container
 
+    /** True while location has not been granted. The app shows its disclosure before asking for it. */
+    private val locationNeeded = mutableStateOf(false)
+
     /** True once the user has refused location. The app cannot work without it, so it says so. */
     private val locationDenied = mutableStateOf(false)
 
@@ -25,6 +28,7 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         if (results.values.any { it }) {
+            locationNeeded.value = false
             locationDenied.value = false
             container.refresh()
         } else {
@@ -34,11 +38,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        locationNeeded.value = !hasLocationPermission()
         setContent {
             NearGemsApp(
                 container = container,
                 onStart = ::onAppStarted,
                 onWatchChanged = ::onWatchChanged,
+                locationNeeded = locationNeeded.value,
                 locationDenied = locationDenied.value,
                 onAllowLocation = ::requestLocation,
                 onOpenSettings = ::openAppSettings,
@@ -59,15 +65,18 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         // Coming back from the settings screen: if location was switched on there, carry on.
-        if (locationDenied.value && hasLocationPermission()) {
-            locationDenied.value = false
-            container.refresh()
+        if (hasLocationPermission()) {
+            locationNeeded.value = false
+            if (locationDenied.value) {
+                locationDenied.value = false
+                container.refresh()
+            }
         }
     }
 
-    /** Asks for location when the app opens, then loads suggestions. */
+    /** Loads suggestions when location is already granted. Otherwise the disclosure screen asks first. */
     private fun onAppStarted() {
-        if (hasLocationPermission()) container.refresh() else requestLocation()
+        if (hasLocationPermission()) container.refresh()
     }
 
     private fun requestLocation() {

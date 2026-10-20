@@ -28,9 +28,10 @@ Places come from OpenStreetMap and Wikipedia. Near Gems does not show ads.
 
 ## Data safety answers (draft, check against the final build)
 
-- **Location:** collected, used to find nearby places and to show distance. Not shared with
-  anyone. Processed on the device and in requests to the place-data services. Optional: the app
-  asks for it on first launch and needs it to work.
+- **Location (precise):** collected and shared with OpenStreetMap (Overpass API) and Wikipedia to
+  find nearby places, and with OpenStreetMap for map tiles. Required: the app needs it to work.
+  Also used in the background only when car watch is turned on (a notification shows while it
+  runs). Not sold; the developer does not receive it.
 - **Visit history:** stored on the device only. Not collected by the developer.
 - **Data sent to third parties:** the device's approximate position is sent to OpenStreetMap's
   Overpass API and Wikipedia to find places. Map tiles come from OpenStreetMap.

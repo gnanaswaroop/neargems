@@ -135,6 +135,7 @@ fun NearGemsApp(
     container: DriveContainer,
     onStart: () -> Unit,
     onWatchChanged: (Boolean) -> Unit,
+    locationNeeded: Boolean = false,
     locationDenied: Boolean = false,
     onAllowLocation: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
@@ -145,6 +146,8 @@ fun NearGemsApp(
     val heading by container.headingDegrees.collectAsState()
     val visits by container.visits.collectAsState()
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    // The disclosure comes before each system location prompt.
+    var disclosed by remember { mutableStateOf(false) }
     PlatformBackHandler(enabled = showSettings) { showSettings = false }
 
     LaunchedEffect(Unit) { onStart() }
@@ -160,10 +163,19 @@ fun NearGemsApp(
     )
     val places = listOfNotNull(state.current) + state.upcoming
 
-    // Without location the app has nothing to show, so it asks for it and explains why it is needed.
+    // Without location the app has nothing to show. It says what the location is used for, then asks.
+    if (locationNeeded && !disclosed) {
+        NearGemsTheme(mode = settings.themeMode) {
+            LocationDisclosureScreen(onContinue = {
+                disclosed = true
+                onAllowLocation()
+            })
+        }
+        return
+    }
     if (locationDenied) {
         NearGemsTheme(mode = settings.themeMode) {
-            LocationRequiredScreen(onAllow = onAllowLocation, onOpenSettings = onOpenSettings)
+            LocationRequiredScreen(onAllow = { disclosed = false }, onOpenSettings = onOpenSettings)
         }
         return
     }
@@ -230,6 +242,57 @@ fun NearGemsApp(
                 }
             }
         }
+    }
+}
+
+/**
+ * Shown before the system location prompt. Says what location is used for, who receives it and
+ * when it is collected, so the user can decide before Android asks.
+ */
+@Composable
+private fun LocationDisclosureScreen(onContinue: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Wordmark()
+        Spacer(Modifier.height(32.dp))
+        Text(
+            "Your location",
+            fontFamily = displayFont(),
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 26.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { heading() },
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "NearGems uses your location to find places near you and to show how far away they are and " +
+                "which way they are. While the app is open, your position is sent to " +
+                "OpenStreetMap and Wikipedia to look up those places. The developer does not receive it.",
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Only if you turn on car watch does NearGems keep checking your location in the background, " +
+                "with a notification, so it can announce places when your car connects.",
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(28.dp))
+        Button(
+            onClick = onContinue,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+            shape = RoundedCornerShape(50),
+        ) { Text("Continue") }
     }
 }
 
