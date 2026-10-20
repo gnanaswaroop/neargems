@@ -32,6 +32,8 @@ data class PoiState(
     val hasPrevious: Boolean = false,
     /** The place [PoiRepository.previous] would bring back, measured from the last fix, or null. */
     val previous: RankedPoi? = null,
+    /** True while a search is still running, so the UI can show progress as results trickle in. */
+    val searching: Boolean = false,
 )
 
 class PoiRepository(
@@ -83,8 +85,17 @@ class PoiRepository(
         val key = FetchKey(current.categories, current.radiusMeters)
         val origin = fetchedFrom
         if (key != fetchedFor || origin == null || distanceMeters(origin, position) > REFETCH_METERS) {
+            here = position
+            // Keep the places already found while the new search runs, unless the categories changed:
+            // those belong to a different search. Show them at once, then let the new results trickle in.
+            val kept = if (fetchedFor?.categories == key.categories) candidates else emptyList()
+            candidates = kept
+            publish(current.radiusMeters, announce = false, searching = true)
             try {
-                candidates = finder.find(position, current.radiusMeters, current.categories)
+                candidates = finder.find(position, current.radiusMeters, current.categories) { found ->
+                    candidates = (found + kept).distinctBy { it.id }
+                    publish(current.radiusMeters, announce = false, searching = true)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -128,7 +139,7 @@ class PoiRepository(
         announcedId = null
     }
 
-    private fun publish(radiusMeters: Int, announce: Boolean) {
+    private fun publish(radiusMeters: Int, announce: Boolean, searching: Boolean = false) {
         val origin = here ?: return
         val ranked = PoiRanker.rank(candidates, origin, radiusMeters, settings.dismissedIds())
         recordArrivals(ranked)
@@ -144,6 +155,15 @@ class PoiRepository(
                 position = origin,
                 hasPrevious = passed.isNotEmpty(),
                 previous = previous,
+                searching = searching,
+            )
+            // Nothing yet, but the search is still running: keep showing that it is searching.
+            searching -> PoiState(
+                loading = true,
+                position = origin,
+                hasPrevious = passed.isNotEmpty(),
+                previous = previous,
+                searching = true,
             )
             candidates.isEmpty() -> PoiState(
                 message = "No places found within $radiusMeters m.",

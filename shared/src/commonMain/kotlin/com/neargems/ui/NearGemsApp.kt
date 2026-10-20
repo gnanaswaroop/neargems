@@ -50,8 +50,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -86,6 +88,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.SubcomposeAsyncImage
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.outlined.Check
@@ -142,7 +145,6 @@ private const val ONE_DAY_MILLIS = 24L * 60 * 60 * 1000
  * Nothing scrolls the page itself: the layout fits the screen. Full text opens in a modal.
  * [onStart] runs once on launch (Android asks for location permission there, then refreshes).
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NearGemsApp(
     container: DriveContainer,
@@ -152,6 +154,26 @@ fun NearGemsApp(
     locationDenied: Boolean = false,
     onAllowLocation: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+) {
+    val seenIds by container.seenIds.collectAsState()
+    CompositionLocalProvider(LocalSeenIds provides seenIds) {
+        NearGemsContent(container, onStart, onWatchChanged, locationNeeded, locationDenied, onAllowLocation, onOpenSettings)
+    }
+}
+
+/** The ids of the places the user has seen, for the badges, without passing them through every screen. */
+private val LocalSeenIds = compositionLocalOf<Set<String>> { emptySet() }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun NearGemsContent(
+    container: DriveContainer,
+    onStart: () -> Unit,
+    onWatchChanged: (Boolean) -> Unit,
+    locationNeeded: Boolean,
+    locationDenied: Boolean,
+    onAllowLocation: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val state by container.state.collectAsState()
     val settings by container.settings.settings.collectAsState()
@@ -173,6 +195,7 @@ fun NearGemsApp(
         onRefresh = container::refresh,
         onRestoreDismissed = container::restoreDismissed,
         onOpenUrl = container::openUrl,
+        onSeen = container::markSeen,
     )
     val places = listOfNotNull(state.current) + state.upcoming
 
@@ -215,6 +238,14 @@ fun NearGemsApp(
                     simulated = settings.simulateCar,
                     onToggleSettings = { showSettings = !showSettings },
                 )
+
+                // A thin bar while a search runs, so results trickling in read as progress. The space is
+                // always kept, so the layout does not jump when it comes and goes.
+                Box(modifier = Modifier.fillMaxWidth().height(3.dp)) {
+                    if (state.searching && !showSettings && places.isNotEmpty()) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxSize())
+                    }
+                }
 
                 if (showSettings) {
                     Column(
@@ -398,6 +429,7 @@ private class Actions(
     val onRefresh: () -> Unit,
     val onRestoreDismissed: () -> Unit,
     val onOpenUrl: (String) -> Unit,
+    val onSeen: (Poi) -> Unit,
 )
 
 /** Title row: the wordmark, the connection icon (car, with a status dot), and Settings. */
@@ -479,7 +511,10 @@ private fun PlaceListArea(state: PoiState, actions: Actions, modifier: Modifier)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable(role = Role.Button) { openPlace = ranked },
+                            .clickable(role = Role.Button) {
+                                actions.onSeen(ranked.poi)
+                                openPlace = ranked
+                            },
                     ) {
                         QueueRow(ranked, selected = ranked == state.current)
                     }
@@ -541,11 +576,14 @@ private fun QueueRow(ranked: RankedPoi, selected: Boolean) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(ranked.poi.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Text(
-                ranked.poi.category.label,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    ranked.poi.category.label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SeenBadge(ranked.poi)
+            }
         }
         Text(
             formatDistance(ranked.distanceMeters),
@@ -661,6 +699,13 @@ private fun SuggestionPager(
     LaunchedEffect(pagerState.settledPage) {
         if (offset == 1 && pagerState.settledPage == 0) actions.onPrevious()
     }
+    // A card counts as seen once the user has moved on from it.
+    var lastShown by remember { mutableStateOf<Poi?>(null) }
+    LaunchedEffect(pagerState.settledPage) {
+        val now = pages.getOrNull(pagerState.settledPage)?.poi
+        lastShown?.let { if (it.id != now?.id) actions.onSeen(it) }
+        lastShown = now
+    }
 
     Column(modifier = modifier) {
         HorizontalPager(
@@ -752,6 +797,8 @@ private fun SuggestionCard(
     // Remembered per place, so the modal stays open across GPS updates and starts closed for a new place.
     var detailOpen by rememberSaveable(poi.id) { mutableStateOf(false) }
     var photoOpen by rememberSaveable(poi.id) { mutableStateOf(false) }
+    // Opening the text or the photo counts as seeing the place.
+    LaunchedEffect(detailOpen, photoOpen) { if (detailOpen || photoOpen) actions.onSeen(poi) }
     val h = availableHeight
     // The map takes a share of whatever height the card has, and the text gets the rest.
     // Landscape phones and short windows get a smaller photo and map, so the text still fits.
@@ -790,15 +837,18 @@ private fun SuggestionCard(
                 PhotoBlock(photo, poi.name, photoHeight, actions, onPhotoClick = { photoOpen = true })
             }
         }
-        Text(
-            buildString {
-                append(poi.category.label.uppercase())
-                if (large) append(" · TOP PICK")
-            },
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                buildString {
+                    append(poi.category.label.uppercase())
+                    if (large) append(" · TOP PICK")
+                },
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            SeenBadge(poi)
+        }
         Text(
             poi.name,
             fontFamily = displayFont(),
@@ -874,12 +924,15 @@ private fun WideSuggestionCard(
             modifier = Modifier.weight(1.3f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(
-                poi.category.label.uppercase(),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    poi.category.label.uppercase(),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                SeenBadge(poi)
+            }
             Text(
                 poi.name,
                 fontFamily = displayFont(),
@@ -901,6 +954,26 @@ private fun WideSuggestionCard(
             from?.let { MiniMap(from = it, to = poi.location, height = 120.dp, onClick = { actions.onOpenMap(poi) }) }
         }
     }
+}
+
+/** "New" until the user has seen the place, then a quiet "Seen". Whether it was seen comes from the local database. */
+@Composable
+private fun SeenBadge(poi: Poi) {
+    val isNew = poi.id !in LocalSeenIds.current
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(50)
+    Text(
+        if (isNew) "New" else "Seen",
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = if (isNew) colors.onPrimary else colors.onSurfaceVariant,
+        modifier = Modifier
+            .clip(shape)
+            .background(if (isNew) colors.primary else Color.Transparent)
+            .border(1.dp, if (isNew) colors.primary else colors.outlineVariant, shape)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .semantics { contentDescription = if (isNew) "New place" else "Seen place" },
+    )
 }
 
 /** The photo at nearly full screen, for looking at detail. Tapping the credit still opens its licence page. */

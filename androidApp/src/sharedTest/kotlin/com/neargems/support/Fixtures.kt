@@ -14,7 +14,9 @@ import com.neargems.platform.HeadingSource
 import com.neargems.platform.KeyValueStore
 import com.neargems.platform.LocationSource
 import com.neargems.platform.MapOpener
+import com.neargems.platform.MemorySeenStore
 import com.neargems.platform.Narrator
+import com.neargems.platform.SeenStore
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -71,7 +73,11 @@ object Fixtures {
     }
 
     /** The whole app model, as the Android entry point builds it, with every platform piece faked. */
-    fun driveContainer(location: LatLon? = CAFE, live: Flow<LatLon> = emptyFlow()): DriveContainer =
+    fun driveContainer(
+        location: LatLon? = CAFE,
+        live: Flow<LatLon> = emptyFlow(),
+        seen: SeenStore = MemorySeenStore(),
+    ): DriveContainer =
         DriveContainer(
             PlatformServices(
                 http = httpClient(),
@@ -83,6 +89,7 @@ object Fixtures {
                 carConnected = flowOf(false),
                 language = "en",
                 clock = { 0L },
+                seen = seen,
             ),
         )
 }

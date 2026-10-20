@@ -9,6 +9,7 @@ import com.neargems.android.platform.AndroidHeadingSource
 import com.neargems.android.platform.AndroidLocationSource
 import com.neargems.android.platform.AndroidMapOpener
 import com.neargems.android.platform.AndroidNarrator
+import com.neargems.android.platform.AndroidSeenStore
 import com.neargems.android.platform.SharedPrefsStore
 import com.neargems.app.DriveContainer
 import com.neargems.app.PlatformServices
@@ -39,6 +40,7 @@ class NearGemsApplication : Application(), SingletonImageLoader.Factory {
                 carConnected = CarConnectionMonitor(this).projecting,
                 language = Locale.getDefault().language.ifBlank { "en" },
                 clock = System::currentTimeMillis,
+                seen = AndroidSeenStore(this),
             )
         )
     }

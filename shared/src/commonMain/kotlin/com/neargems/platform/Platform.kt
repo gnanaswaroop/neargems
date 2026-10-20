@@ -37,3 +37,21 @@ interface KeyValueStore {
     fun getString(key: String): String?
     fun putString(key: String, value: String?)
 }
+
+/**
+ * Remembers which places the user has seen, so each can be marked New or Seen. A place is in the
+ * store once it has been seen. Android keeps this in a local SQLite database.
+ */
+interface SeenStore {
+    fun seenIds(): Set<String>
+    fun markSeen(id: String, name: String, category: String, atMillis: Long)
+}
+
+/** A [SeenStore] that forgets everything when the app closes. For tests, and platforms without a database. */
+class MemorySeenStore : SeenStore {
+    private val ids = mutableSetOf<String>()
+    override fun seenIds(): Set<String> = ids.toSet()
+    override fun markSeen(id: String, name: String, category: String, atMillis: Long) {
+        ids += id
+    }
+}

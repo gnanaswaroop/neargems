@@ -16,7 +16,9 @@ import com.neargems.platform.KeyValueStore
 import com.neargems.platform.HeadingSource
 import com.neargems.platform.LocationSource
 import com.neargems.platform.MapOpener
+import com.neargems.platform.MemorySeenStore
 import com.neargems.platform.Narrator
+import com.neargems.platform.SeenStore
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +49,8 @@ class PlatformServices(
     /** Device language code, used to pick the Wikipedia edition. */
     val language: String,
     val clock: () -> Long,
+    /** Which places the user has seen, for the New and Seen badges. A database on Android. */
+    val seen: SeenStore = MemorySeenStore(),
 )
 
 /**
@@ -73,6 +77,19 @@ class DriveContainer(platform: PlatformServices) {
     /** Places the user has been close to, stored on this device only. */
     private val visitStore = VisitStore(platform.keyValues, platform.clock)
     val visits: StateFlow<List<Visit>> = visitStore.visits
+
+    private val seenStore = platform.seen
+    private val _seenIds = MutableStateFlow(seenStore.seenIds())
+
+    /** Ids of the places the user has seen. Anything else is New. */
+    val seenIds: StateFlow<Set<String>> = _seenIds.asStateFlow()
+
+    /** Marks a place as seen: shown and moved on from, opened, passed with Next, or read aloud. */
+    fun markSeen(poi: Poi) {
+        if (poi.id in _seenIds.value) return
+        seenStore.markSeen(poi.id, poi.name, poi.category.label, clock())
+        _seenIds.value = _seenIds.value + poi.id
+    }
 
     val repository = PoiRepository(
         settings = settings,
@@ -146,6 +163,8 @@ class DriveContainer(platform: PlatformServices) {
     }
 
     fun next() {
+        // Passing a place on means it has been seen.
+        state.value.current?.poi?.let(::markSeen)
         scope.launch { repository.next(announce = shouldAnnounce()) }
     }
 
@@ -153,7 +172,10 @@ class DriveContainer(platform: PlatformServices) {
         scope.launch { repository.previous(announce = shouldAnnounce()) }
     }
 
-    fun speakCurrent() = repository.speakCurrent()
+    fun speakCurrent() {
+        state.value.current?.poi?.let(::markSeen)
+        repository.speakCurrent()
+    }
 
     fun openMap(poi: Poi) = maps.open(poi)
 
