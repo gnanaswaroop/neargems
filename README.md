@@ -1,6 +1,6 @@
-# Nearwise
+# Near Wise
 
-Nearwise tells you about interesting places close to where you are: a restaurant, a café, a bar, or a landmark with a short read-aloud summary. It works for drivers and for people on foot. It shows the distance, which way the place is, and roughly how long it takes to walk or drive there.
+Near Wise tells you about interesting places close to where you are: a restaurant, a café, a bar, or a landmark with a short read-aloud summary. It works for drivers and for people on foot. It shows the distance, which way the place is, and roughly how long it takes to walk or drive there.
 
 ![Phone: suggestion card with photo, direction pointer and actions](docs/screenshots/phone-suggestion.png)
 

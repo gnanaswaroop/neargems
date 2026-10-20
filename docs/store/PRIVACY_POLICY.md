@@ -1,22 +1,22 @@
-# Nearwise privacy policy
+# Near Wise privacy policy
 
 _Last updated: 20 October 2026._
 
-Nearwise finds interesting places near where you are. This policy says what it does with your
+Near Wise finds interesting places near where you are. This policy says what it does with your
 information.
 
 ## Location
 
-Nearwise asks for your location so it can find nearby places and show how far away they are and
+Near Wise asks for your location so it can find nearby places and show how far away they are and
 which way they are. Your location is used on your device. The app sends your approximate position
 to the OpenStreetMap Overpass API and to Wikipedia when it looks for places, and to
 tile.openstreetmap.org when it shows the map. The developer does not receive or store your location.
 
-If you turn off location, Nearwise cannot show suggestions.
+If you turn off location, Near Wise cannot show suggestions.
 
 ## Visit history
 
-When you come within about 50 metres of a place, Nearwise remembers it in a list on your phone. This
+When you come within about 50 metres of a place, Near Wise remembers it in a list on your phone. This
 list is never uploaded. Clearing the app's data or uninstalling the app removes it.
 
 ## Settings
@@ -30,7 +30,7 @@ Your choices (categories, search radius, theme and car options) are stored on yo
 
 ## Children
 
-Nearwise does not knowingly collect information from anyone, including children.
+Near Wise does not knowingly collect information from anyone, including children.
 
 ## Changes
 
