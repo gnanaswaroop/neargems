@@ -1,5 +1,10 @@
 package com.neargems.ui
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -458,7 +463,9 @@ private fun PlaceListArea(state: PoiState, actions: Actions, modifier: Modifier)
     var openPlace by remember { mutableStateOf<RankedPoi?>(null) }
     var openPhoto by remember { mutableStateOf<Photo?>(null) }
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (queue.isEmpty()) {
+        if (queue.isEmpty() && state.loading) {
+            SearchingState(Modifier.weight(1f).fillMaxWidth())
+        } else if (queue.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
                     state.message ?: "Nothing to suggest right now.",
@@ -571,16 +578,59 @@ private fun SuggestionArea(
             actions = actions,
             modifier = modifier,
         )
-        state.loading -> Box(modifier = modifier) {
-            Text(
-                "Searching nearby…",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        state.loading -> SearchingState(modifier)
         else -> Box(modifier = modifier, contentAlignment = Alignment.Center) {
             EmptyState(message = state.message, actions = actions)
         }
+    }
+}
+
+/**
+ * Shown while places are being found: a pulsing radar around a dot for "you are here", and a line
+ * saying what is happening, so the wait reads as progress rather than an empty screen.
+ */
+@Composable
+private fun SearchingState(modifier: Modifier) {
+    val pulse by rememberInfiniteTransition(label = "searching").animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 2200, easing = LinearEasing)),
+        label = "pulse",
+    )
+    val ring = MaterialTheme.colorScheme.primary
+    Column(
+        modifier = modifier.semantics { contentDescription = "Finding places near you" },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Canvas(modifier = Modifier.size(150.dp)) {
+            // Three rings spread through the cycle, each growing from the dot and fading as it goes.
+            for (phase in listOf(0f, 1f / 3f, 2f / 3f)) {
+                val t = (pulse + phase) % 1f
+                drawCircle(
+                    color = ring.copy(alpha = (1f - t) * 0.55f),
+                    radius = size.minDimension / 2 * t,
+                    style = Stroke(width = 3.dp.toPx()),
+                )
+            }
+            drawCircle(color = ring, radius = 8.dp.toPx())
+        }
+        Spacer(Modifier.height(24.dp))
+        Text(
+            "Finding places near you",
+            fontFamily = displayFont(),
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 24.sp,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Looking up restaurants, cafés and landmarks around you.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 24.dp),
+        )
     }
 }
 

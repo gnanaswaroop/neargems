@@ -43,7 +43,7 @@ class PoiRepository(
     private val visits: VisitStore? = null,
 ) {
     private val mutex = Mutex()
-    private val _state = MutableStateFlow(PoiState(message = "Finding places nearby…"))
+    private val _state = MutableStateFlow(PoiState(loading = true, message = "Finding places nearby…"))
     val state: StateFlow<PoiState> = _state.asStateFlow()
 
     private var here: LatLon? = null
