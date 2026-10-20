@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- The design's accent teal, so the launcher icon matches the app. -->
-    <color name="ic_launcher_background">#0F6E6A</color>
+    <!-- Dark teal from the app icon artwork, behind the adaptive foreground. -->
+    <color name="ic_launcher_background">#103840</color>
 </resources>
