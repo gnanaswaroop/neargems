@@ -81,6 +81,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.SubcomposeAsyncImage
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.outlined.DirectionsCar
 import com.neargems.app.DriveContainer
@@ -376,8 +377,17 @@ private fun TopBar(showSettings: Boolean, connected: Boolean, simulated: Boolean
         Wordmark(modifier = Modifier.weight(1f))
         ConnectionIcon(connected = connected, simulated = simulated)
         Spacer(Modifier.width(4.dp))
-        TextButton(onClick = onToggleSettings) {
-            Text(if (showSettings) "Done" else "Settings", fontWeight = FontWeight.SemiBold)
+        OutlinedButton(
+            onClick = onToggleSettings,
+            modifier = Modifier.heightIn(min = 40.dp),
+            shape = RoundedCornerShape(50),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+        ) {
+            if (showSettings) {
+                Icon(Icons.Filled.Check, contentDescription = "Done", modifier = Modifier.size(20.dp))
+            } else {
+                Text("Settings", fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
