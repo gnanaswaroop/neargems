@@ -73,6 +73,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.SubcomposeAsyncImage
@@ -123,7 +125,7 @@ private const val ONE_DAY_MILLIS = 24L * 60 * 60 * 1000
 /**
  * The whole app UI, shared by every screen size. Phones get one column with the places in a
  * swipeable pager; wider screens get the queue on the left and the places on the right.
- * Nothing scrolls the page itself: the layout fits the screen, and only an expanded card scrolls.
+ * Nothing scrolls the page itself: the layout fits the screen. Full text opens in a modal.
  * [onStart] runs once on launch (Android asks for location permission there, then refreshes).
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -142,6 +144,7 @@ fun NearwiseApp(
     val heading by container.headingDegrees.collectAsState()
     val visits by container.visits.collectAsState()
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    PlatformBackHandler(enabled = showSettings) { showSettings = false }
 
     LaunchedEffect(Unit) { onStart() }
 
@@ -512,7 +515,7 @@ private fun SwipeCue(page: Int, count: Int) {
 
 /**
  * One place. Photo and map shrink, and then disappear, as the available height drops, so a small
- * phone fits the card without scrolling. Only an expanded text scrolls the card.
+ * phone fits the card without scrolling. The full text opens in a modal instead.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -526,9 +529,8 @@ private fun SuggestionCard(
 ) {
     val poi = ranked.poi
     val shape = RoundedCornerShape(20.dp)
-    // Remembered per place, so a card stays expanded across GPS updates but starts folded for a new place.
-    var expanded by rememberSaveable(poi.id) { mutableStateOf(false) }
-    val scroll = rememberScrollState()
+    // Remembered per place, so the modal stays open across GPS updates and starts closed for a new place.
+    var detailOpen by rememberSaveable(poi.id) { mutableStateOf(false) }
     val h = availableHeight
     // The map takes a share of whatever height the card has, and the text gets the rest.
     val photoHeight = when {
@@ -545,7 +547,7 @@ private fun SuggestionCard(
     }
     val textSpace = h - photoHeight - mapHeight - CARD_CHROME
     val foldLines = (textSpace / SNIPPET_LINE_HEIGHT).toInt().coerceIn(2, 12)
-    val folded = !expanded && poi.snippet.length > SNIPPET_FOLD_CHARS
+    val folded = poi.snippet.length > SNIPPET_FOLD_CHARS
 
     Column(
         modifier = Modifier
@@ -553,12 +555,13 @@ private fun SuggestionCard(
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
-            .padding(if (large) 20.dp else 16.dp)
-            .verticalScroll(scroll, enabled = expanded),
+            .padding(if (large) 20.dp else 16.dp),
         verticalArrangement = Arrangement.spacedBy(if (large) 10.dp else 8.dp),
     ) {
         if (photoHeight > 0.dp) {
-            poi.photo?.let { photo -> PhotoBlock(photo, poi.name, photoHeight, actions) }
+            poi.photo?.let { photo ->
+                PhotoBlock(photo, poi.name, photoHeight, actions, onPhotoClick = { detailOpen = true })
+            }
         }
         Text(
             buildString {
@@ -578,16 +581,16 @@ private fun SuggestionCard(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.semantics { heading() },
         )
-        // Collapsed: a few lines that fade out at the bottom. Expanded: the whole text, and the card scrolls.
+        // A few lines that fade out at the bottom. Tapping the text opens the whole of it.
         Box(modifier = Modifier.fillMaxWidth()) {
             Text(
                 poi.snippet,
                 style = MaterialTheme.typography.bodyLarge,
                 fontSize = 17.sp,
                 lineHeight = 25.sp,
-                maxLines = if (expanded) Int.MAX_VALUE else foldLines,
+                maxLines = foldLines,
                 overflow = TextOverflow.Clip,
-                modifier = Modifier.semantics { role = Role.Button }.clickable { expanded = !expanded },
+                modifier = Modifier.semantics { role = Role.Button }.clickable { detailOpen = true },
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
             )
             if (folded) {
@@ -606,15 +609,72 @@ private fun SuggestionCard(
         }
         if (poi.snippet.length > SNIPPET_FOLD_CHARS) {
             Text(
-                if (expanded) "Show less" else "Read more",
+                "Read more",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.semantics { role = Role.Button }.clickable { expanded = !expanded },
+                modifier = Modifier.semantics { role = Role.Button }.clickable { detailOpen = true },
             )
         }
         DistanceDetails(ranked, from, heading)
         if (mapHeight > 0.dp) {
             from?.let { MiniMap(from = it, to = poi.location, height = mapHeight) }
+        }
+    }
+    if (detailOpen) {
+        PlaceDetailDialog(poi, actions) { detailOpen = false }
+    }
+}
+
+/**
+ * The whole place in a modal over the list: the photo, the full text, and a way back. Closing it
+ * leaves the list where it was, so swiping still works afterwards.
+ */
+@Composable
+private fun PlaceDetailDialog(poi: Poi, actions: Actions, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        val shape = RoundedCornerShape(20.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .heightIn(max = 640.dp)
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
+                .padding(20.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            poi.photo?.let { photo -> PhotoBlock(photo, poi.name, 220.dp, actions, onPhotoClick = {}) }
+            Text(
+                poi.category.label.uppercase(),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                poi.name,
+                fontFamily = displayFont(),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 30.sp,
+                lineHeight = 36.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.semantics { heading() },
+            )
+            Text(
+                poi.snippet,
+                style = MaterialTheme.typography.bodyLarge,
+                fontSize = 17.sp,
+                lineHeight = 25.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
+            )
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                shape = RoundedCornerShape(50),
+            ) { Text("Close") }
         }
     }
 }
@@ -710,7 +770,7 @@ private fun CompassPointer(relativeDegrees: Float) {
  * line opens the file page, where the image's licence is listed.
  */
 @Composable
-private fun PhotoBlock(photo: Photo, name: String, height: Dp, actions: Actions) {
+private fun PhotoBlock(photo: Photo, name: String, height: Dp, actions: Actions, onPhotoClick: () -> Unit) {
     val placeholder: @Composable (String) -> Unit = { label ->
         Box(
             modifier = Modifier
@@ -728,7 +788,8 @@ private fun PhotoBlock(photo: Photo, name: String, height: Dp, actions: Actions)
         modifier = Modifier
             .fillMaxWidth()
             .height(height)
-            .clip(RoundedCornerShape(14.dp)),
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onPhotoClick),
         loading = { placeholder("Loading photo…") },
         error = { placeholder("Photo unavailable") },
     )
