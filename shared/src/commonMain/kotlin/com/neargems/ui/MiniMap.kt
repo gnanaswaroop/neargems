@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -20,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
@@ -50,9 +52,16 @@ private const val MAX_ZOOM = 18
 /**
  * A small street map with your position and the place, so you can see how close you are. Tiles come
  * from OpenStreetMap at runtime; the attribution line is required by the OpenStreetMap licence.
+ * [onClick] opens the place in the maps app the user already has.
  */
 @Composable
-fun MiniMap(from: LatLon, to: LatLon, modifier: Modifier = Modifier, height: Dp = MAP_HEIGHT_DP.dp) {
+fun MiniMap(
+    from: LatLon,
+    to: LatLon,
+    modifier: Modifier = Modifier,
+    height: Dp = MAP_HEIGHT_DP.dp,
+    onClick: (() -> Unit)? = null,
+) {
     val distance = distanceMeters(from, to)
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val tileFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(if (dark) 0.25f else 0.35f) })
@@ -64,7 +73,14 @@ fun MiniMap(from: LatLon, to: LatLon, modifier: Modifier = Modifier, height: Dp 
                 contentDescription = "Map showing your position and the place, ${formatDistance(distance)} apart"
             }
             .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(role = Role.Button, onClickLabel = "Open in your maps app", onClick = onClick)
+                } else {
+                    Modifier
+                },
+            ),
     ) {
         val widthPx = maxWidth.value.toDouble()
         val heightPx = maxHeight.value.toDouble()

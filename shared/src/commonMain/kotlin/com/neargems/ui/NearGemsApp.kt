@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -58,7 +59,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -97,6 +97,7 @@ import com.neargems.domain.bearingDegrees
 import com.neargems.domain.compassPoint
 import com.neargems.domain.driveMinutes
 import com.neargems.domain.formatDistance
+import com.neargems.domain.summarise
 import com.neargems.domain.walkMinutes
 import kotlin.math.roundToInt
 
@@ -105,8 +106,8 @@ private val RADIUS_OPTIONS = listOf(500 to "500 m", 1000 to "1 km", 2000 to "2 k
 /** Width from which the layout switches to two panes (tablets, foldables, landscape phones). */
 private val TWO_PANE_MIN_WIDTH = 600.dp
 
-/** Snippets longer than this get a "Read more" link; shorter ones always fit. */
-private const val SNIPPET_FOLD_CHARS = 130
+/** Rough characters per line of the snippet body, used to size the collapsed text to the card. */
+private const val SNIPPET_CHARS_PER_LINE = 34
 
 /** Share of the card's height given to the mini map when there is room for it. */
 private const val MAP_SHARE = 0.25f
@@ -618,6 +619,7 @@ private fun SuggestionCard(
     val shape = RoundedCornerShape(20.dp)
     // Remembered per place, so the modal stays open across GPS updates and starts closed for a new place.
     var detailOpen by rememberSaveable(poi.id) { mutableStateOf(false) }
+    var photoOpen by rememberSaveable(poi.id) { mutableStateOf(false) }
     val h = availableHeight
     // The map takes a share of whatever height the card has, and the text gets the rest.
     val photoHeight = when {
@@ -634,7 +636,8 @@ private fun SuggestionCard(
     }
     val textSpace = h - photoHeight - mapHeight - CARD_CHROME
     val foldLines = (textSpace / SNIPPET_LINE_HEIGHT).toInt().coerceIn(2, 12)
-    val folded = poi.snippet.length > SNIPPET_FOLD_CHARS
+    // Only whole sentences that fit the space the card has; the full text is one tap away.
+    val collapsed = summarise(poi.snippet, maxChars = foldLines * SNIPPET_CHARS_PER_LINE)
 
     Column(
         modifier = Modifier
@@ -647,7 +650,7 @@ private fun SuggestionCard(
     ) {
         if (photoHeight > 0.dp) {
             poi.photo?.let { photo ->
-                PhotoBlock(photo, poi.name, photoHeight, actions, onPhotoClick = { detailOpen = true })
+                PhotoBlock(photo, poi.name, photoHeight, actions, onPhotoClick = { photoOpen = true })
             }
         }
         Text(
@@ -668,33 +671,18 @@ private fun SuggestionCard(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.semantics { heading() },
         )
-        // A few lines that fade out at the bottom. Tapping the text opens the whole of it.
-        Box(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                poi.snippet,
-                style = MaterialTheme.typography.bodyLarge,
-                fontSize = 17.sp,
-                lineHeight = 25.sp,
-                maxLines = foldLines,
-                overflow = TextOverflow.Clip,
-                modifier = Modifier.semantics { role = Role.Button }.clickable { detailOpen = true },
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-            )
-            if (folded) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(Color.Transparent, MaterialTheme.colorScheme.surface),
-                            ),
-                        ),
-                )
-            }
-        }
-        if (poi.snippet.length > SNIPPET_FOLD_CHARS) {
+        // The opening sentences that fit. Tapping the text opens the whole of it.
+        Text(
+            collapsed,
+            style = MaterialTheme.typography.bodyLarge,
+            fontSize = 17.sp,
+            lineHeight = 25.sp,
+            maxLines = foldLines,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.semantics { role = Role.Button }.clickable { detailOpen = true },
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+        )
+        if (collapsed != poi.snippet) {
             Text(
                 "Read more",
                 style = MaterialTheme.typography.labelLarge,
@@ -704,11 +692,55 @@ private fun SuggestionCard(
         }
         DistanceDetails(ranked, from, heading)
         if (mapHeight > 0.dp) {
-            from?.let { MiniMap(from = it, to = poi.location, height = mapHeight) }
+            from?.let { MiniMap(from = it, to = poi.location, height = mapHeight, onClick = { actions.onOpenMap(poi) }) }
         }
     }
     if (detailOpen) {
-        PlaceDetailDialog(poi, actions) { detailOpen = false }
+        PlaceDetailDialog(poi, actions, onPhotoClick = { photoOpen = true }) { detailOpen = false }
+    }
+    if (photoOpen) {
+        poi.photo?.let { photo -> PhotoViewer(photo, poi.name, actions) { photoOpen = false } }
+    }
+}
+
+/** The photo at nearly full screen, for looking at detail. Tapping the credit still opens its licence page. */
+@Composable
+private fun PhotoViewer(photo: Photo, name: String, actions: Actions, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        val shape = RoundedCornerShape(20.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.96f)
+                .fillMaxHeight(0.86f)
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            SubcomposeAsyncImage(
+                model = photo.imageUrl,
+                contentDescription = "Photo of $name",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                loading = { Text("Loading photo…", style = MaterialTheme.typography.labelSmall) },
+                error = { Text("Photo unavailable", style = MaterialTheme.typography.labelSmall) },
+            )
+            Text(
+                "Photo: Wikipedia · licence on the file page",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.clickable { actions.onOpenUrl(photo.fileUrl) },
+            )
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                shape = RoundedCornerShape(50),
+            ) { Text("Close") }
+        }
     }
 }
 
@@ -717,7 +749,7 @@ private fun SuggestionCard(
  * leaves the list where it was, so swiping still works afterwards.
  */
 @Composable
-private fun PlaceDetailDialog(poi: Poi, actions: Actions, onDismiss: () -> Unit) {
+private fun PlaceDetailDialog(poi: Poi, actions: Actions, onPhotoClick: () -> Unit, onDismiss: () -> Unit) {
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -734,7 +766,7 @@ private fun PlaceDetailDialog(poi: Poi, actions: Actions, onDismiss: () -> Unit)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            poi.photo?.let { photo -> PhotoBlock(photo, poi.name, 220.dp, actions, onPhotoClick = {}) }
+            poi.photo?.let { photo -> PhotoBlock(photo, poi.name, 220.dp, actions, onPhotoClick = onPhotoClick) }
             Text(
                 poi.category.label.uppercase(),
                 style = MaterialTheme.typography.labelLarge,
