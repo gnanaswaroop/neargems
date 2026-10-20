@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Dark teal from the app icon artwork, behind the adaptive foreground. -->
-    <color name="ic_launcher_background">#103840</color>
+    <color name="ic_launcher_background">#123D43</color>
 </resources>
