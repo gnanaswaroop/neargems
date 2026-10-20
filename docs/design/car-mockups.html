@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nearwise on the car display</title>
+<style>
+:root{--stage:#16140F;--ink:#F4EFE6;--muted:#A39B8E;--accent:#5FBDB7;--panel:#25221E;--line:#37332D;--map:#2A2722;--road:#4A453D;--display:Georgia,'Fraunces',serif;--body:system-ui,'Source Sans 3',sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--stage);color:var(--ink);font-family:var(--body);padding:32px 24px}
+h1{font-family:var(--display);font-weight:600;font-size:22px;margin:0 0 4px}
+p.note{color:var(--muted);font-size:14px;max-width:900px;margin:0 0 24px;line-height:1.5}
+.label{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:28px 0 10px}
+.screen{width:1280px;height:720px;border-radius:22px;overflow:hidden;border:1px solid var(--line);background:#0E0D0B;position:relative;display:flex;flex-direction:column}
+.bar{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:#0E0D0B;border-bottom:1px solid var(--line)}
+.bar .title{font-family:var(--display);font-size:24px;font-weight:600}
+.bar .clock{font-size:20px;color:var(--muted)}
+.bar .status{display:flex;gap:18px;align-items:center;color:var(--muted);font-size:16px}
+.body{flex:1;display:flex;min-height:0}
+.map{flex:1;position:relative;background:var(--map);overflow:hidden}
+.road{position:absolute;background:var(--road)}
+.pin{position:absolute;width:22px;height:22px;border-radius:50%;border:3px solid #0E0D0B}
+.pin.me{background:#fff}
+.pin.place{background:var(--accent);width:30px;height:30px}
+.pin.other{background:#8D8577;width:16px;height:16px}
+.maplabel{position:absolute;background:rgba(20,19,16,.85);color:var(--ink);font-size:16px;padding:5px 10px;border-radius:8px}
+.pane{width:520px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;padding:24px 28px;gap:14px}
+.pane h2{font-family:var(--display);font-weight:600;font-size:22px;margin:0}
+.row{padding:14px 16px;border-radius:14px;background:#1B1915;border:1px solid var(--line)}
+.row.sel{border-color:var(--accent);box-shadow:inset 4px 0 0 var(--accent)}
+.row .t{font-size:20px;font-weight:600}
+.row .s{font-size:16px;color:var(--muted);margin-top:4px}
+.actions{height:96px;display:flex;gap:14px;align-items:center;padding:0 24px;background:#0E0D0B;border-top:1px solid var(--line)}
+.btn{flex:1;height:64px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600}
+.btn.p{background:var(--accent);color:#00201E}
+.btn.s{border:2px solid #5A5249;color:var(--ink)}
+.cp-list{width:440px;background:#1C1B19;display:flex;flex-direction:column;border-right:1px solid var(--line)}
+.cp-list .hdr{padding:18px 22px;font-size:22px;font-weight:600;border-bottom:1px solid var(--line)}
+.cp-item{padding:16px 22px;border-bottom:1px solid var(--line)}
+.cp-item .t{font-size:20px;font-weight:600}
+.cp-item .s{font-size:15px;color:var(--muted);margin-top:4px}
+.cp-item.sel{background:#2A2722}
+.cp-foot{margin-top:auto;padding:14px 22px;font-size:14px;color:var(--muted);border-top:1px solid var(--line)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;color:var(--muted);font-size:14px;max-width:900px}
+.legend span{display:flex;gap:8px;align-items:center}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:50%}
+</style>
+</head>
+<body>
+
+<h1>Nearwise on the car display</h1>
+<p class="note">Mock-ups of the car screens, drawn from the list-and-map layouts that Android Auto and CarPlay use. Car screens do not show the phone card: they show a list of places beside a map, with the main actions at the bottom. Photos and the full text are left out. Actual rendering depends on the car and on each platform's approval rules.</p>
+
+<div class="label">Android Auto · Car App Library, list and map</div>
+<section class="screen" aria-label="Android Auto mock-up">
+  <div class="bar">
+    <div style="display:flex;align-items:center;gap:14px"><span class="title">Nearwise</span></div>
+    <div class="status"><span>Nearby</span><span class="clock">12:40</span></div>
+  </div>
+  <div class="body">
+    <div class="map" role="img" aria-label="Map with you and the places around you">
+      <div class="road" style="left:0;right:0;top:58%;height:22px"></div>
+      <div class="road" style="top:0;bottom:0;left:38%;width:20px"></div>
+      <div class="road" style="top:0;bottom:0;left:70%;width:14px;transform:rotate(12deg)"></div>
+      <div class="pin me" style="left:33%;top:60%"></div>
+      <div class="pin place" style="left:45%;top:42%"></div>
+      <div class="pin other" style="left:60%;top:24%"></div>
+      <div class="pin other" style="left:18%;top:28%"></div>
+      <div class="maplabel" style="left:50%;top:30%">Nelson's Column · 60 m</div>
+    </div>
+    <div class="pane">
+      <h2>Nearby</h2>
+      <div class="row sel"><div class="t">Nelson's Column</div><div class="s">Landmark · 60 m · NW</div></div>
+      <div class="row"><div class="t">Corner Cafe</div><div class="s">Café · 240 m</div></div>
+      <div class="row"><div class="t">Trattoria Luna</div><div class="s">Restaurant · 310 m</div></div>
+      <div class="row"><div class="t">Hyde Park Corner Kiosk</div><div class="s">Fast food · 640 m</div></div>
+    </div>
+  </div>
+  <div class="actions">
+    <div class="btn p">Read aloud</div>
+    <div class="btn s">Next</div>
+  </div>
+</section>
+
+<div class="label">CarPlay · list and map</div>
+<section class="screen" aria-label="CarPlay mock-up">
+  <div class="bar">
+    <div class="title">Nearwise</div>
+    <div class="status"><span class="clock">12:40</span></div>
+  </div>
+  <div class="body">
+    <div class="cp-list">
+      <div class="hdr">Nearby</div>
+      <div class="cp-item sel"><div class="t">Nelson's Column</div><div class="s">Landmark · 60 m</div></div>
+      <div class="cp-item"><div class="t">Corner Cafe</div><div class="s">Café · 240 m</div></div>
+      <div class="cp-item"><div class="t">Trattoria Luna</div><div class="s">Restaurant · 310 m</div></div>
+      <div class="cp-item"><div class="t">Hyde Park Corner Kiosk</div><div class="s">Fast food · 640 m</div></div>
+      <div class="cp-foot">Tap a place to read it aloud</div>
+    </div>
+    <div class="map" role="img" aria-label="Map with you and the places around you">
+      <div class="road" style="left:0;right:0;top:40%;height:22px"></div>
+      <div class="road" style="top:0;bottom:0;left:55%;width:20px"></div>
+      <div class="pin me" style="left:44%;top:56%"></div>
+      <div class="pin place" style="left:48%;top:44%"></div>
+      <div class="pin other" style="left:70%;top:22%"></div>
+      <div class="pin other" style="left:24%;top:30%"></div>
+      <div class="maplabel" style="left:54%;top:36%">Nelson's Column · 60 m</div>
+    </div>
+  </div>
+  <div class="actions" style="justify-content:flex-start">
+    <div class="btn p" style="flex:0 0 260px">Read aloud</div>
+    <div class="btn s" style="flex:0 0 200px">Next</div>
+  </div>
+</section>
+
+<div class="legend" aria-label="Map legend">
+  <span><i style="background:#fff"></i>You</span>
+  <span><i style="background:var(--accent)"></i>Top pick</span>
+  <span><i style="background:#8D8577"></i>Other places</span>
+</div>
+
+</body>
+</html>

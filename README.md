@@ -38,11 +38,7 @@ flowchart TB
     subgraph android["androidApp"]
         AND["Fused location, sensors, TextToSpeech,<br/>SharedPreferences, Intents,<br/>car connection, foreground service"]
     end
-    subgraph ios["iosApp (Swift host)"]
-        IOS["CoreLocation, compass heading,<br/>AVSpeechSynthesizer, NSUserDefaults,<br/>UIApplication URLs"]
-    end
     AND -- implements --> PLAT
-    IOS -- implements --> PLAT
 ```
 
 ### Data flow
@@ -61,14 +57,14 @@ flowchart TB
 
 ### Platform code
 
-| Interface | Android | iOS |
-| --- | --- | --- |
-| `LocationSource` | Fused Location Provider | CoreLocation |
-| `HeadingSource` | Rotation-vector sensor | CoreLocation heading |
-| `Narrator` | `TextToSpeech`, with audio focus | `AVSpeechSynthesizer` |
-| `MapOpener` | `geo:` intent | Apple Maps URL |
-| `KeyValueStore` | `SharedPreferences` | `NSUserDefaults` |
-| Car connection | Car App library `CarConnection` | CarPlay (not built yet) |
+| Interface | Android |
+| --- | --- |
+| `LocationSource` | Fused Location Provider |
+| `HeadingSource` | Rotation-vector sensor |
+| `Narrator` | `TextToSpeech`, with audio focus |
+| `MapOpener` | `geo:` intent |
+| `KeyValueStore` | `SharedPreferences` |
+| Car connection | Car App library `CarConnection` |
 
 ## Data sources and licences
 
@@ -85,12 +81,9 @@ Requirements: JDK 17 or newer, the Android SDK (platform 37), and Gradle through
 ```powershell
 .\gradlew.bat :androidApp:assembleDebug        # Android debug APK
 .\gradlew.bat :androidApp:testDebugUnitTest    # unit and movement tests
-.\gradlew.bat :shared:compileKotlinIosSimulatorArm64   # iOS compile (works on Windows too)
 ```
 
 Install on an emulator with `adb install -r androidApp\build\outputs\apk\debug\androidApp-debug.apk`. To test the walk, run `scripts\walk-on-emulator.ps1 -Serial emulator-5556` while the app is open. Each step sends a GPS fix, and the cards update as you move.
-
-The iOS app is in `iosApp/`. See `iosApp/README.md` for the Xcode steps.
 
 ## Tests
 
@@ -109,19 +102,16 @@ The fakes shared by these tests live in `androidApp/src/sharedTest/kotlin`. Run 
 | Android phone and tablet UI | Built and checked on an emulator |
 | Live distance, direction and compass pointer | Built and checked on an emulator |
 | Wikipedia photos and credit links | Working on an emulator |
-| Shared Kotlin code for both platforms | Android build and tests pass. iOS Kotlin compiles on Windows |
+| Shared Kotlin code | Android build and tests pass |
 | Fonts (Fraunces and Source Sans 3) | Packaged and wired. Rendering on the device not yet confirmed |
-| iOS app | Swift host written. Not built or run: needs a Mac and Xcode |
 | Android Auto car screen | Not built yet |
-| Apple CarPlay | Not built yet. Needs Apple's CarPlay entitlement |
 | OpenStreetMap attribution in the UI | Not built yet |
 
 ## Repository layout
 
 ```
-shared/          Kotlin Multiplatform: domain, data, app, ui, iOS platform code
+shared/          Kotlin Multiplatform: domain, data, app, ui, platform interfaces
 androidApp/      Android host: Activity, Application, sensors, TTS, car connection
-iosApp/          SwiftUI host and Info.plist for the shared framework
 docs/            README screenshots
 scripts/         Emulator helpers, such as the walk simulator
 LICENSES/        Font licences
