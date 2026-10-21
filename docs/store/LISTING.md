@@ -17,6 +17,10 @@ or a landmark, with a short summary you can have read aloud.
   brings the last one back.
 - Landmark photos and summaries from Wikipedia, with a link to each photo's licence.
 - A map of the place from your position, with OpenStreetMap attribution.
+- Choose one card at a time, or a list of nearby places to pick from.
+- New and Seen badges, so you can see what is new since you last looked. Kept only on your phone.
+- Change the search distance and new places appear as they are found.
+- Works in portrait and landscape.
 - A visit history, kept only on your phone.
 - Light, dark, or system theme.
 
@@ -32,14 +36,24 @@ Places come from OpenStreetMap and Wikipedia. Near Gems does not show ads.
   find nearby places, and with OpenStreetMap for map tiles. Required: the app needs it to work.
   Also used in the background only when car watch is turned on (a notification shows while it
   runs). Not sold; the developer does not receive it.
-- **Visit history:** stored on the device only. Not collected by the developer.
+- **Visit history and New/Seen badges:** stored on the device only, in a local database. Not
+  collected by the developer.
 - **Data sent to third parties:** the device's approximate position is sent to OpenStreetMap's
   Overpass API and Wikipedia to find places. Map tiles come from OpenStreetMap.
 - **Data encrypted in transit:** yes (HTTPS).
 - **Users can request deletion:** clearing app data or uninstalling removes everything the app
   stores.
 
-## Release notes (first release, 1.0.0)
+## Release notes
 
-First release. Nearby suggestions with read-aloud, distance and direction, a map preview, and a
-visit history on your phone.
+**1.1.0** (versionCode 2)
+- Choose between one card at a time and a list of nearby places.
+- New and Seen badges on each place, kept on your phone.
+- Changing the search distance searches again, and new places appear as they are found.
+- Landscape layout for phones.
+- Tap the map to open the place in your maps app.
+- Larger photo viewer, and descriptions that end at a full sentence.
+
+**1.0.0** (first release)
+Nearby suggestions with read-aloud, distance and direction, a map preview, and a visit history on
+your phone.
