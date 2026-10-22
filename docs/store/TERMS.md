@@ -53,4 +53,4 @@ where the app is listed. Continuing to use the app after a change means you acce
 
 ## Contact
 
-Swaroop, gnanaswaroop@gmail.com
+Use the developer contact address shown on the app's Play Store listing.

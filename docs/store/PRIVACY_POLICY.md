@@ -3,7 +3,7 @@
 _Last updated: 22 October 2026._
 
 Near Gems finds interesting places near where you are. This policy says what it does with your
-information, and what it does not do. The developer is Swaroop (gnanaswaroop@gmail.com).
+information, and what it does not do. The developer is the publisher named on the app's Play Store listing.
 
 ## Summary
 
@@ -86,4 +86,4 @@ If this policy changes, the new version will be published at the same address wi
 
 ## Contact
 
-Swaroop, gnanaswaroop@gmail.com
+Use the developer contact address shown on the app's Play Store listing.
