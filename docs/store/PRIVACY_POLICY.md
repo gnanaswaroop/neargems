@@ -10,7 +10,7 @@ information, and what it does not do. The developer is Swaroop (gnanaswaroop@gma
 - Near Gems has no accounts, no sign-in, no ads, and no analytics or crash-reporting services.
 - Your location is used to find places near you. It is sent to the place-data services described
   below, and the developer never receives it.
-- Places you have visited, places you have seen, and your settings are stored only on your phone.
+- Places you have seen and your settings are stored only on your phone. Visits are not tracked.
 - Nothing is sold, and nothing is shared with advertisers.
 
 ## Location
@@ -49,11 +49,10 @@ the app's own storage on your phone, and clearing the app's data removes that ca
 
 Near Gems keeps the following on your phone only. None of it is uploaded.
 
-- **Visit history.** When you come within about 50 metres of a place, Near Gems remembers it.
 - **Seen places.** Each place is marked New or Seen. Seen places are kept in a small local database
   (SQLite), so the badges stay the same after you close the app.
 - **Dismissed places.** Places you pass with Next are hidden for 12 hours.
-- **Settings.** Categories, search distance, the one-card or list choice, theme, car options, and
+- **Settings.** Categories, search distance, the card or list choice, theme, car options, and
   any test location you set.
 
 Clearing the app's data or uninstalling the app removes all of this.

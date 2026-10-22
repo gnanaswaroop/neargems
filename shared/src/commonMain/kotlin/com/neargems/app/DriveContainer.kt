@@ -99,7 +99,8 @@ class DriveContainer(platform: PlatformServices) {
         ),
         location = location,
         narrator = platform.narrator,
-        visits = visitStore,
+        // Visits are not recorded in this release. Seeing a suggestion is not visiting a place.
+        visits = null,
     )
 
     val state: StateFlow<PoiState> = repository.state

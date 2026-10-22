@@ -1031,10 +1031,14 @@ private fun PlaceDetailDialog(poi: Poi, actions: Actions, onPhotoClick: () -> Un
                 .clip(shape)
                 .background(MaterialTheme.colorScheme.surface)
                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
-                .padding(20.dp)
-                .verticalScroll(rememberScrollState()),
+                .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // The text scrolls; Close stays pinned at the bottom so it is never cut off.
+            Column(
+                modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
             poi.photo?.let { photo -> PhotoBlock(photo, poi.name, 220.dp, actions, onPhotoClick = onPhotoClick) }
             Text(
                 poi.category.label.uppercase(),
@@ -1066,6 +1070,7 @@ private fun PlaceDetailDialog(poi: Poi, actions: Actions, onPhotoClick: () -> Un
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.semantics { role = Role.Button }.clickable { actions.onOpenUrl(link) },
                 )
+            }
             }
             Button(
                 onClick = onDismiss,
@@ -1283,39 +1288,8 @@ private fun SettingsPanel(
                 FilterChip(
                     selected = settings.placeView == view,
                     onClick = { onSettings { it.copy(placeView = view) } },
-                    label = { Text(if (view == PlaceView.CARDS) "One card at a time" else "List") },
+                    label = { Text(if (view == PlaceView.CARDS) "Card View" else "List") },
                 )
-            }
-        }
-
-        SectionTitle("Visited")
-        if (visits.isEmpty()) {
-            Text(
-                "Places you get within 50 m of appear here. This history stays on this device.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
-            visits.take(HISTORY_SHOWN).forEach { visit ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                        Text(visit.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            visit.categoryLabel,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Text(
-                        visitedLabel(visit.atMillis, now),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
         }
 
