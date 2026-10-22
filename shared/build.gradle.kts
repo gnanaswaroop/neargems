@@ -13,17 +13,6 @@ kotlin {
         minSdk = 26
     }
 
-    // Kotlin/Native iOS targets. They compile on macOS only; Windows builds skip them.
-    iosArm64()
-    iosSimulatorArm64()
-
-    targets.withType<org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget>().configureEach {
-        binaries.framework {
-            baseName = "Shared"
-            isStatic = true
-        }
-    }
-
     sourceSets {
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -42,9 +31,6 @@ kotlin {
         androidMain.dependencies {
             implementation("androidx.activity:activity-compose:1.10.1")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
-        }
-        iosMain.dependencies {
-            implementation("io.ktor:ktor-client-darwin:3.6.0")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

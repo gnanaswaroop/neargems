@@ -32,7 +32,7 @@ interface MapOpener {
     fun openUrl(url: String)
 }
 
-/** Small persistent key-value storage: SharedPreferences on Android, NSUserDefaults on iOS. */
+/** Small persistent key-value storage: SharedPreferences on Android. */
 interface KeyValueStore {
     fun getString(key: String): String?
     fun putString(key: String, value: String?)
