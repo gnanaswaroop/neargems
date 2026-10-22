@@ -711,8 +711,10 @@ private fun SuggestionPager(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
+            // The card to the left peeks in whenever there is one: the place passed with Next, or the card
+            // the user just swiped away from. The same goes for the right-hand card, when there is one.
             contentPadding = PaddingValues(
-                start = if (offset == 1) 28.dp else 0.dp,
+                start = if (offset == 1 || pagerState.currentPage > 0) 28.dp else 0.dp,
                 end = if (places.size > 1) 28.dp else 0.dp,
             ),
             pageSpacing = 12.dp,
@@ -1064,6 +1066,15 @@ private fun PlaceDetailDialog(poi: Poi, actions: Actions, onPhotoClick: () -> Un
                 lineHeight = 25.sp,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
             )
+            // The full article is one tap away on Wikipedia, as on the card.
+            poi.link?.let { link ->
+                Text(
+                    "Read more on Wikipedia ›",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.semantics { role = Role.Button }.clickable { actions.onOpenUrl(link) },
+                )
+            }
             Button(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
