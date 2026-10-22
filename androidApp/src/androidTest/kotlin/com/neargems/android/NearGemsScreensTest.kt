@@ -7,6 +7,8 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -51,11 +53,52 @@ class NearGemsScreensTest {
     fun readMoreOpensTheFullTextInAModalAndCloseReturnsToTheCard() {
         showApp()
 
-        rule.onNodeWithText("Read more").performClick()
+        // Tapping the description opens the whole of it, whether or not the card had to shorten it.
+        rule.onNode(hasText("Mo-Fr", substring = true)).performClick()
         rule.onNodeWithText("Close").assertIsDisplayed()
 
         rule.onNodeWithText("Close").performClick()
-        rule.onNodeWithText("Read more").assertIsDisplayed()
+        rule.onAllNodesWithText(Fixtures.CAFE_NAME).onFirst().assertIsDisplayed()
+    }
+
+    @Test
+    fun theSettingsGearOpensSettingsAndTheCheckmarkClosesIt() {
+        showApp()
+
+        rule.onNodeWithContentDescription("Settings").performClick()
+        rule.onNodeWithText("What to suggest").assertIsDisplayed()
+
+        rule.onNodeWithContentDescription("Done").performClick()
+        rule.waitForIdle()
+        assertTrue(rule.onAllNodesWithText("What to suggest").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun theListViewShowsEveryPlaceAndTappingOneOpensItsModal() {
+        showApp()
+        rule.onNodeWithContentDescription("Settings").performClick()
+        rule.onNodeWithText("List").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("Done").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText(Fixtures.RESTAURANT_NAME).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText(Fixtures.RESTAURANT_NAME).performClick()
+        rule.onNodeWithText("Close").assertIsDisplayed()
+    }
+
+    @Test
+    fun theSearchingScreenShowsBeforeAnyPlaceIsFound() {
+        rule.setContent {
+            NearGemsApp(
+                container = container,
+                onStart = {},
+                onWatchChanged = {},
+                onAllowLocation = {},
+                onOpenSettings = {},
+            )
+        }
+
+        rule.onNodeWithText("Finding places near you").assertIsDisplayed()
     }
 
     @Test
@@ -74,7 +117,7 @@ class NearGemsScreensTest {
     @Test
     fun systemBackOnSettingsGoesToTheSuggestionsInsteadOfLeavingTheApp() {
         showApp()
-        rule.onNodeWithText("Settings").performClick()
+        rule.onNodeWithContentDescription("Settings").performClick()
         rule.onNodeWithText("What to suggest").assertIsDisplayed()
 
         rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
@@ -87,7 +130,7 @@ class NearGemsScreensTest {
     @Test
     fun turningOnTestModeShowsThePresetsAndCoordinateFields() {
         showApp()
-        rule.onNodeWithText("Settings").performClick()
+        rule.onNodeWithContentDescription("Settings").performClick()
 
         rule.onNodeWithText(TEST_MODE_LABEL).performScrollTo().performClick()
 

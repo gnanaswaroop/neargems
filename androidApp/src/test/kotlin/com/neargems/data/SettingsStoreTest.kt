@@ -55,6 +55,19 @@ class SettingsStoreTest {
         assertEquals(emptySet<String>(), settings.dismissedIds())
     }
 
+    @Test
+    fun theChosenPlaceViewIsRememberedAfterARestart() {
+        val store = MemoryStore()
+        SettingsStore(store) { 0L }.update { it.copy(placeView = PlaceView.LIST) }
+
+        assertEquals(PlaceView.LIST, SettingsStore(store) { 0L }.settings.value.placeView)
+    }
+
+    @Test
+    fun cardsAreTheDefaultPlaceView() {
+        assertEquals(PlaceView.CARDS, SettingsStore(MemoryStore()) { 0L }.settings.value.placeView)
+    }
+
     private companion object {
         const val TWELVE_HOURS = 12 * 60 * 60 * 1000L
     }

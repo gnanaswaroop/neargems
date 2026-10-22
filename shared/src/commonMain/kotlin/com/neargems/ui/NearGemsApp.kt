@@ -735,27 +735,19 @@ private fun SuggestionPager(
         SwipeCue(
             page = (pagerState.currentPage - offset).coerceAtLeast(0),
             count = places.size,
-            back = offset == 1,
         )
     }
 }
 
-/** Dots (or a count) and a hint, so it is clear that there are more places to swipe through or back to. */
+/** Dots (or a count) and a hint, so it is clear that there are more places to swipe through. Back is the button below. */
 @Composable
-private fun SwipeCue(page: Int, count: Int, back: Boolean) {
-    if (count <= 1 && !back) return
+private fun SwipeCue(page: Int, count: Int) {
+    if (count <= 1) return
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        if (back) {
-            Text(
-                if (count > 1) "‹ back  ·  " else "‹ back",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
         if (count <= MAX_DOTS) {
             repeat(count) { index ->
                 val selected = index == page
