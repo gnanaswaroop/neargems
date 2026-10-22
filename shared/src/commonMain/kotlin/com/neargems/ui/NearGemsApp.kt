@@ -858,23 +858,25 @@ private fun SuggestionCard(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.semantics { heading() },
         )
-        // The opening sentences that fit. Tapping the text opens the whole of it.
+        // Whole sentences that fit the card. Tapping the text opens the full text in the modal.
         Text(
             collapsed,
             style = MaterialTheme.typography.bodyLarge,
             fontSize = 17.sp,
             lineHeight = 25.sp,
-            maxLines = foldLines,
-            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.semantics { role = Role.Button }.clickable { detailOpen = true },
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
         )
         if (collapsed != poi.snippet) {
+            // When there is more to read, point straight at the source: the Wikipedia article if there is one.
+            val source = poi.link
             Text(
-                "Read more",
+                if (source != null) "Read more on Wikipedia ›" else "Read more ›",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.semantics { role = Role.Button }.clickable { detailOpen = true },
+                modifier = Modifier.semantics { role = Role.Button }.clickable {
+                    if (source != null) actions.onOpenUrl(source) else detailOpen = true
+                },
             )
         }
         DistanceDetails(ranked, from, heading)
