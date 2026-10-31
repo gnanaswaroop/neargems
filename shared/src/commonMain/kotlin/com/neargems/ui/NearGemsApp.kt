@@ -196,6 +196,8 @@ private fun NearGemsContent(
         onRestoreDismissed = container::restoreDismissed,
         onOpenUrl = container::openUrl,
         onSeen = container::markSeen,
+        onShown = container::showing,
+        onVisited = container::markVisited,
     )
     val places = listOfNotNull(state.current) + state.upcoming
 
@@ -430,6 +432,8 @@ private class Actions(
     val onRestoreDismissed: () -> Unit,
     val onOpenUrl: (String) -> Unit,
     val onSeen: (Poi) -> Unit,
+    val onShown: (RankedPoi?) -> Unit,
+    val onVisited: (RankedPoi) -> Unit,
 )
 
 /** Title row: the wordmark, the connection icon (car, with a status dot), and Settings. */
@@ -699,6 +703,10 @@ private fun SuggestionPager(
     LaunchedEffect(pagerState.settledPage) {
         if (offset == 1 && pagerState.settledPage == 0) actions.onPrevious()
     }
+    // The card on screen is the one Read aloud and Next act on.
+    LaunchedEffect(pagerState.settledPage, pages.getOrNull(pagerState.settledPage)?.poi?.id) {
+        actions.onShown(pages.getOrNull(pagerState.settledPage))
+    }
     // A card counts as seen once the user has moved on from it.
     var lastShown by remember { mutableStateOf<Poi?>(null) }
     LaunchedEffect(pagerState.settledPage) {
@@ -874,6 +882,7 @@ private fun SuggestionCard(
             )
         }
         DistanceDetails(ranked, from, heading)
+        TextButton(onClick = { actions.onVisited(ranked) }) { Text("Mark as visited") }
         if (mapHeight > 0.dp) {
             from?.let { MiniMap(from = it, to = poi.location, height = mapHeight, onClick = { actions.onOpenMap(poi) }) }
         }
@@ -947,6 +956,7 @@ private fun WideSuggestionCard(
                 modifier = Modifier.semantics { role = Role.Button }.clickable(onClick = onDetailClick),
             )
             DistanceDetails(ranked, from, heading)
+            TextButton(onClick = { actions.onVisited(ranked) }) { Text("Mark as visited") }
             from?.let { MiniMap(from = it, to = poi.location, height = 120.dp, onClick = { actions.onOpenMap(poi) }) }
         }
     }
@@ -1298,6 +1308,11 @@ private fun SettingsPanel(
             label = "Read a suggestion aloud when a car connects",
             checked = settings.announceOnCar,
             onChange = { on -> onSettings { it.copy(announceOnCar = on) } },
+        )
+        SwitchRow(
+            label = "Mute audio, even when a car is connected",
+            checked = settings.muteAudio,
+            onChange = { on -> onSettings { it.copy(muteAudio = on) } },
         )
         SwitchRow(
             label = "Keep watching for a car in the background (Android)",

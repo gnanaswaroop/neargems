@@ -110,11 +110,11 @@ class PoiRepository(
     }
 
     /** Hides the current suggestion and shows the next one, announcing it if [announce] is set. */
-    suspend fun next(announce: Boolean) {
+    suspend fun next(announce: Boolean, shown: RankedPoi? = null) {
         mutex.withLock {
-            val shown = _state.value.current ?: return
-            settings.dismiss(shown.poi.id)
-            passed.addLast(shown)
+            val current = shown ?: _state.value.current ?: return
+            settings.dismiss(current.poi.id)
+            passed.addLast(current)
             publish(settings.settings.value.radiusMeters, announce)
         }
     }
@@ -132,6 +132,11 @@ class PoiRepository(
         _state.value.current?.let { narrator.speak(speechFor(it)) }
     }
 
+    /** Reads aloud the place the user is looking at, which may not be the top pick. */
+    fun speakPlace(ranked: RankedPoi) {
+        narrator.speak(speechFor(ranked))
+    }
+
     fun stopSpeaking() = narrator.stop()
 
     /** Forgets the last announcement so the next suggestion is read out again, e.g. on a new car connection. */
@@ -141,7 +146,7 @@ class PoiRepository(
 
     private fun publish(radiusMeters: Int, announce: Boolean, searching: Boolean = false) {
         val origin = here ?: return
-        val ranked = PoiRanker.rank(candidates, origin, radiusMeters, settings.dismissedIds())
+        val ranked = PoiRanker.rank(candidates, origin, radiusMeters, settings.dismissedIds() + settings.visitedIds())
         recordArrivals(ranked)
         val top = ranked.firstOrNull()
         // The place Back would bring back. It is always shown, even after moving past the search radius,

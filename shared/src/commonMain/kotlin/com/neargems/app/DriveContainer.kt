@@ -12,6 +12,7 @@ import com.neargems.data.VisitStore
 import com.neargems.data.WikipediaSource
 import com.neargems.domain.LatLon
 import com.neargems.domain.Poi
+import com.neargems.domain.RankedPoi
 import com.neargems.platform.KeyValueStore
 import com.neargems.platform.HeadingSource
 import com.neargems.platform.LocationSource
@@ -98,7 +99,7 @@ class DriveContainer(platform: PlatformServices) {
             wikipedia = WikipediaSource(Http(platform.http), platform.language),
         ),
         location = location,
-        narrator = platform.narrator,
+        narrator = MutingNarrator(platform.narrator) { settings.settings.value.muteAudio },
         // Visits are not recorded in this release. Seeing a suggestion is not visiting a place.
         visits = null,
     )
@@ -164,18 +165,35 @@ class DriveContainer(platform: PlatformServices) {
     }
 
     fun next() {
+        val place = shownPlace.value ?: state.value.current ?: return
         // Passing a place on means it has been seen.
-        state.value.current?.poi?.let(::markSeen)
-        scope.launch { repository.next(announce = shouldAnnounce()) }
+        markSeen(place.poi)
+        shownPlace.value = null
+        scope.launch { repository.next(announce = shouldAnnounce(), shown = place) }
+    }
+
+    /** Hides the place for good, because the user has already been there. */
+    fun markVisited(ranked: RankedPoi) {
+        settings.markVisited(ranked.poi.id)
+        shownPlace.value = null
+        scope.launch { refreshAsync() }
     }
 
     fun previous() {
         scope.launch { repository.previous(announce = shouldAnnounce()) }
     }
 
+    /** The card on screen. Read aloud, Next and Mark as visited act on it; null means the top pick. */
+    private val shownPlace = MutableStateFlow<RankedPoi?>(null)
+
+    fun showing(ranked: RankedPoi?) {
+        shownPlace.value = ranked
+    }
+
     fun speakCurrent() {
-        state.value.current?.poi?.let(::markSeen)
-        repository.speakCurrent()
+        val place = shownPlace.value ?: state.value.current ?: return
+        markSeen(place.poi)
+        repository.speakPlace(place)
     }
 
     fun openMap(poi: Poi) = maps.open(poi)
@@ -190,6 +208,8 @@ class DriveContainer(platform: PlatformServices) {
     fun updateSettings(transform: (AppSettings) -> AppSettings) {
         scope.launch {
             settings.update(transform)
+            // Muting also stops anything already being read aloud.
+            if (settings.settings.value.muteAudio) narrator.stop()
             refreshAsync()
         }
     }
@@ -197,6 +217,7 @@ class DriveContainer(platform: PlatformServices) {
     fun restoreDismissed() {
         scope.launch {
             settings.clearDismissed()
+            settings.clearVisited()
             refreshAsync()
         }
     }

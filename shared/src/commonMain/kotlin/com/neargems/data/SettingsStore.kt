@@ -20,6 +20,8 @@ data class AppSettings(
     val radiusMeters: Int = 1000,
     /** Read the top suggestion aloud when a car connects. */
     val announceOnCar: Boolean = true,
+    /** Silence every spoken announcement, including when a car is connected. */
+    val muteAudio: Boolean = false,
     /** Android only: keep a foreground service running so car connections are noticed in the background. */
     val watchInBackground: Boolean = false,
     /** Testing switch that pretends a car is connected. */
@@ -37,6 +39,7 @@ class SettingsStore(private val store: KeyValueStore, private val clock: () -> L
         store.putString(KEY_CATEGORIES, next.categories.joinToString(",") { it.name })
         store.putString(KEY_RADIUS, next.radiusMeters.toString())
         store.putString(KEY_ANNOUNCE_CAR, next.announceOnCar.toString())
+        store.putString(KEY_MUTE, next.muteAudio.toString())
         store.putString(KEY_WATCH, next.watchInBackground.toString())
         store.putString(KEY_SIMULATE, next.simulateCar.toString())
         store.putString(KEY_THEME, next.themeMode.name)
@@ -63,6 +66,16 @@ class SettingsStore(private val store: KeyValueStore, private val clock: () -> L
 
     fun clearDismissed() = store.putString(KEY_DISMISSED, null)
 
+    /** Hides a place for good, because the user has been there. Nothing about when is kept. */
+    fun markVisited(id: String) {
+        store.putString(KEY_VISITED, (visitedIds() + id).joinToString("\n"))
+    }
+
+    fun visitedIds(): Set<String> =
+        store.getString(KEY_VISITED).orEmpty().lines().filter { it.isNotBlank() }.toSet()
+
+    fun clearVisited() = store.putString(KEY_VISITED, null)
+
     private fun liveDismissals(now: Long): List<Pair<String, Long>> =
         store.getString(KEY_DISMISSED).orEmpty()
             .lines()
@@ -84,6 +97,7 @@ class SettingsStore(private val store: KeyValueStore, private val clock: () -> L
             } ?: defaults.categories,
             radiusMeters = store.getString(KEY_RADIUS)?.toIntOrNull() ?: defaults.radiusMeters,
             announceOnCar = store.getString(KEY_ANNOUNCE_CAR)?.toBooleanStrictOrNull() ?: defaults.announceOnCar,
+            muteAudio = store.getString(KEY_MUTE)?.toBooleanStrictOrNull() ?: defaults.muteAudio,
             watchInBackground = store.getString(KEY_WATCH)?.toBooleanStrictOrNull() ?: defaults.watchInBackground,
             simulateCar = store.getString(KEY_SIMULATE)?.toBooleanStrictOrNull() ?: defaults.simulateCar,
             themeMode = store.getString(KEY_THEME)?.let { name -> ThemeMode.entries.firstOrNull { it.name == name } }
@@ -105,6 +119,8 @@ class SettingsStore(private val store: KeyValueStore, private val clock: () -> L
         const val KEY_CATEGORIES = "categories"
         const val KEY_RADIUS = "radius_m"
         const val KEY_ANNOUNCE_CAR = "announce_car"
+        const val KEY_MUTE = "mute_audio"
+        const val KEY_VISITED = "marked_visited"
         const val KEY_WATCH = "watch_in_background"
         const val KEY_SIMULATE = "simulate_car"
         const val KEY_DISMISSED = "dismissed"
