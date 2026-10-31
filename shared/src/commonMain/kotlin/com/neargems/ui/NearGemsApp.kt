@@ -1500,7 +1500,10 @@ private fun SettingsPanel(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionTitle("What to suggest")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             PoiCategory.entries.forEach { category ->
                 BulletChip(
                     label = category.label,
