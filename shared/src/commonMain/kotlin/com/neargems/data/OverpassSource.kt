@@ -20,7 +20,7 @@ class OverpassSource(private val http: Http) {
             nwr["amenity"~"^(${amenities.joinToString("|")})$"]["name"](around:$radiusMeters,${center.lat},${center.lon});
             out center 100;
         """.trimIndent()
-        return withRetries { parse(http.postForm(ENDPOINT, "data=" + query.encodeURLParameter())) }
+        return withRetries { endpoint -> parse(http.postForm(endpoint, "data=" + query.encodeURLParameter())) }
     }
 
     /**
@@ -30,24 +30,27 @@ class OverpassSource(private val http: Http) {
     suspend fun fetchNamed(center: LatLon, radiusMeters: Int, keywords: List<String>): List<Poi> {
         // A long list in one request is slow and often times out on the public server, so it goes in batches.
         return namedBatches(keywords).flatMap { batch ->
-            withRetries {
+            withRetries { endpoint ->
                 val pattern = batch.joinToString("|") { Regex.escape(it) }
                 val query = """
                     [out:json][timeout:15];
                     nwr["name"~"($pattern)",i](around:$radiusMeters,${center.lat},${center.lon});
                     out center 100;
                 """.trimIndent()
-                parse(http.postForm(ENDPOINT, "data=" + query.encodeURLParameter()), fallback = PoiCategory.LANDMARK)
+                parse(http.postForm(endpoint, "data=" + query.encodeURLParameter()), fallback = PoiCategory.LANDMARK)
             }
         }.distinctBy { it.id }
     }
 
-    /** Runs [block], and tries again after a short pause when the server is busy or times out. */
-    private suspend fun <T> withRetries(block: suspend () -> T): T {
+    /**
+     * Runs [block] against the Overpass servers in turn. When one is busy, rate-limited or times out, the next
+     * one is tried after a short pause, so a single server going down does not stop the search.
+     */
+    private suspend fun <T> withRetries(block: suspend (endpoint: String) -> T): T {
         var pause = RETRY_PAUSE_MS
-        repeat(ATTEMPTS - 1) {
+        repeat(ATTEMPTS - 1) { attempt ->
             try {
-                return block()
+                return block(ENDPOINTS[attempt % ENDPOINTS.size])
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -55,11 +58,16 @@ class OverpassSource(private val http: Http) {
                 pause *= 2
             }
         }
-        return block()
+        return block(ENDPOINTS[(ATTEMPTS - 1) % ENDPOINTS.size])
     }
 
     companion object {
-        private const val ENDPOINT = "https://overpass-api.de/api/interpreter"
+        /** The main Overpass server, then two public mirrors that run the same data. */
+        private val ENDPOINTS = listOf(
+            "https://overpass-api.de/api/interpreter",
+            "https://overpass.kumi.systems/api/interpreter",
+            "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+        )
         private const val ATTEMPTS = 3
         private const val RETRY_PAUSE_MS = 1_000L
         private const val NAMED_BATCH = 8

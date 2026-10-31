@@ -22,7 +22,7 @@ class KeywordWarningTest {
     fun aFailedKeywordSearchIsReportedAndTheOtherPlacesStillShow() {
         val client = HttpClient(
             MockEngine { request ->
-                if (request.url.host == "overpass-api.de") {
+                if (request.url.host in setOf("overpass-api.de", "overpass.kumi.systems", "maps.mail.ru")) {
                     respond(content = "busy", status = HttpStatusCode.BadGateway, headers = headersOf(HttpHeaders.ContentType, "text/plain"))
                 } else {
                     respond(
