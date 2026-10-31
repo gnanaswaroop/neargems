@@ -1035,8 +1035,7 @@ private fun SuggestionCard(
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
-            .padding(if (large) 20.dp else 16.dp)
-            .verticalScroll(rememberScrollState()),
+            .padding(if (large) 20.dp else 16.dp),
         verticalArrangement = Arrangement.spacedBy(if (large) 10.dp else 8.dp),
     ) {
         if (photoHeight > 0.dp) {
@@ -1088,8 +1087,19 @@ private fun SuggestionCard(
         }
         DistanceDetails(ranked, from, heading)
         TextButton(onClick = { actions.onVisited(ranked) }) { Text("Mark as visited") }
+        // The map takes the height left over after the text, so small differences in text height
+        // are absorbed here and the card does not need to scroll.
         if (mapHeight > 0.dp) {
-            from?.let { MiniMap(from = it, to = poi.location, height = mapHeight, heading = LocalPhoneHeading.current, onClick = { actions.onOpenMap(poi) }) }
+            from?.let {
+                MiniMap(
+                    from = it,
+                    to = poi.location,
+                    modifier = Modifier.weight(1f).heightIn(min = 80.dp, max = 260.dp),
+                    height = Dp.Unspecified,
+                    heading = LocalPhoneHeading.current,
+                    onClick = { actions.onOpenMap(poi) },
+                )
+            }
         }
     }
     }
