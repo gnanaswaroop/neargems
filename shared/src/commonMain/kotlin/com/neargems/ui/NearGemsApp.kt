@@ -564,12 +564,12 @@ private fun ConnectionIcon(connected: Boolean, simulated: Boolean) {
         else -> "Not connected to a car"
     }
     val tint = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Box(modifier = Modifier.size(32.dp).semantics { contentDescription = label }) {
+    Box(modifier = Modifier.size(28.dp).semantics { contentDescription = label }) {
         Icon(
             imageVector = if (connected) Icons.Filled.DirectionsCar else Icons.Outlined.DirectionsCar,
             contentDescription = null,
             tint = tint,
-            modifier = Modifier.size(28.dp).align(Alignment.BottomStart),
+            modifier = Modifier.size(28.dp).align(Alignment.Center),
         )
         Box(
             modifier = Modifier
