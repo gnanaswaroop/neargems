@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlin.math.abs
 import kotlin.math.atan2
+import kotlin.math.hypot
 
 /**
  * Heading from the rotation-vector sensor, which fuses the magnetometer, accelerometer and gyroscope.
@@ -57,12 +58,17 @@ class AndroidHeadingSource(context: Context) : HeadingSource {
 /**
  * Which way the phone faces, in degrees clockwise from north, from its rotation matrix (device to
  * world, row-major). Lying flat, the top edge points where the phone faces. Held upright, in a hand
- * or mounted in a car, the top edge points at the sky and the back camera points where the user
- * faces. Both horizontal directions are added, so whichever one is horizontal sets the heading.
+ * or mounted in a car, the back camera points where the user faces. Only one of the two is used: the
+ * one with the longer horizontal part. Adding them would bend the heading when a mount is rolled.
  */
 internal fun headingFromRotation(r: FloatArray): Float {
-    // East and north components of the top edge (device Y) plus the back camera direction (device -Z).
-    val east = r[1] - r[2]
-    val north = r[4] - r[5]
+    // Horizontal parts as east and north. The top edge is device Y; the back camera is device -Z.
+    val topEast = r[1]
+    val topNorth = r[4]
+    val cameraEast = -r[2]
+    val cameraNorth = -r[5]
+    val useCamera = hypot(cameraEast.toDouble(), cameraNorth.toDouble()) >= hypot(topEast.toDouble(), topNorth.toDouble())
+    val east = if (useCamera) cameraEast else topEast
+    val north = if (useCamera) cameraNorth else topNorth
     return ((Math.toDegrees(atan2(east.toDouble(), north.toDouble())) + 360) % 360).toFloat()
 }
