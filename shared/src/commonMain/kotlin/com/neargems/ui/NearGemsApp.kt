@@ -1,5 +1,6 @@
 package com.neargems.ui
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -12,6 +13,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -61,12 +63,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.layout.ContentScale
@@ -90,6 +94,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.automirrored.outlined.VolumeOff
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.Settings
@@ -101,6 +107,9 @@ import com.neargems.data.ThemeMode
 import com.neargems.data.Visit
 import com.neargems.domain.LatLon
 import com.neargems.platform.SpeechVoice
+import com.neargems.shared.generated.resources.Res
+import com.neargems.shared.generated.resources.neargems_mark
+import org.jetbrains.compose.resources.painterResource
 import com.neargems.domain.Photo
 import com.neargems.domain.Poi
 import com.neargems.domain.PoiCategory
@@ -246,6 +255,8 @@ private fun NearGemsContent(
                     showSettings = showSettings,
                     connected = carConnected,
                     simulated = settings.simulateCar,
+                    muted = settings.muteAudio,
+                    onToggleMute = { container.updateSettings { it.copy(muteAudio = !it.muteAudio) } },
                     onToggleSettings = { showSettings = !showSettings },
                 )
 
@@ -454,7 +465,14 @@ private class Actions(
 
 /** Title row: the wordmark, the connection icon (car, with a status dot), and Settings. */
 @Composable
-private fun TopBar(showSettings: Boolean, connected: Boolean, simulated: Boolean, onToggleSettings: () -> Unit) {
+private fun TopBar(
+    showSettings: Boolean,
+    connected: Boolean,
+    simulated: Boolean,
+    muted: Boolean,
+    onToggleMute: () -> Unit,
+    onToggleSettings: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -463,6 +481,15 @@ private fun TopBar(showSettings: Boolean, connected: Boolean, simulated: Boolean
         Wordmark(modifier = Modifier.weight(1f))
         ConnectionIcon(connected = connected, simulated = simulated)
         Spacer(Modifier.width(4.dp))
+        // Mute sits on the home screen as well as in Settings, so it can be reached while driving.
+        IconButton(onClick = onToggleMute, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = if (muted) Icons.AutoMirrored.Outlined.VolumeOff else Icons.AutoMirrored.Outlined.VolumeUp,
+                contentDescription = if (muted) "Audio muted. Tap to unmute" else "Mute audio",
+                tint = if (muted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(28.dp),
+            )
+        }
         // A plain icon, like the car beside it: no border, so it reads as an icon rather than a button.
         IconButton(onClick = onToggleSettings, modifier = Modifier.size(40.dp)) {
             Icon(
@@ -625,23 +652,59 @@ private fun SuggestionArea(
     actions: Actions,
     modifier: Modifier,
 ) {
+    // The list on screen. When the card on screen walks out of range, the old list stays up while that
+    // card shrinks away slowly, and only then does the next place take its place.
+    var shown by remember { mutableStateOf(places) }
+    val scale = remember { Animatable(1f) }
+    val shownTop = shown.firstOrNull()?.poi?.id
+    val newTop = places.firstOrNull()?.poi?.id
+    LaunchedEffect(newTop) {
+        if (newTop == shownTop) {
+            shown = places
+            return@LaunchedEffect
+        }
+        val departed = shownTop != null && places.none { it.poi.id == shownTop }
+        if (departed) {
+            scale.animateTo(DEPART_SCALE, tween(durationMillis = DEPART_MS, easing = LinearEasing))
+        }
+        shown = places
+        if (departed) {
+            scale.snapTo(DEPART_SCALE)
+            scale.animateTo(1f, tween(durationMillis = ARRIVE_MS))
+        }
+    }
+    val departing = places.isEmpty() && shown.isNotEmpty()
     when {
-        places.isNotEmpty() -> SuggestionPager(
-            places = places,
-            previous = state.previous,
-            from = from,
-            heading = heading,
-            large = large,
-            wide = wide,
-            actions = actions,
-            modifier = modifier,
-        )
+        shown.isNotEmpty() -> Box(
+            modifier = modifier.graphicsLayer {
+                scaleX = scale.value
+                scaleY = scale.value
+                alpha = (scale.value - DEPART_SCALE) / (1f - DEPART_SCALE)
+            },
+        ) {
+            SuggestionPager(
+                places = shown,
+                previous = state.previous,
+                from = from,
+                heading = heading,
+                large = large,
+                wide = wide,
+                actions = actions,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        departing -> Box(modifier = modifier)
         state.loading -> SearchingState(modifier)
         else -> Box(modifier = modifier, contentAlignment = Alignment.Center) {
             EmptyState(message = state.message, actions = actions)
         }
     }
 }
+
+/** How small a card gets as it walks out of range, and how long that takes. Slow on purpose. */
+private const val DEPART_SCALE = 0.8f
+private const val DEPART_MS = 1800
+private const val ARRIVE_MS = 500
 
 /**
  * Shown while places are being found: a pulsing radar around a dot for "you are here", and a line
@@ -710,8 +773,10 @@ private fun SuggestionPager(
     modifier: Modifier,
 ) {
     // The place Back brings back is the page on the left, so a swipe right goes back as a swipe left goes on.
-    val pages = listOfNotNull(previous) + places
-    val offset = pages.size - places.size
+    // A place that is also in the list is not shown twice, which can happen while a card is leaving.
+    val left = previous?.takeIf { back -> places.none { it.poi.id == back.poi.id } }
+    val pages = listOfNotNull(left) + places
+    val offset = if (left != null) 1 else 0
     val pagerState = rememberPagerState(initialPage = offset, pageCount = { pages.size })
     val topId = places.firstOrNull()?.poi?.id
     LaunchedEffect(topId) { pagerState.scrollToPage(offset) }
@@ -853,7 +918,7 @@ private fun SuggestionCard(
         if (photoHeight > 0.dp) {
             poi.photo?.let { photo ->
                 PhotoBlock(photo, poi.name, photoHeight, actions, onPhotoClick = { photoOpen = true })
-            }
+            } ?: GenericPhoto(photoHeight)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
@@ -936,10 +1001,11 @@ private fun WideSuggestionCard(
             .padding(20.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        poi.photo?.let { photo ->
-            Column(modifier = Modifier.weight(1f)) {
-                PhotoBlock(photo, poi.name, (availableHeight - 56.dp).coerceAtLeast(120.dp), actions, onPhotoClick)
-            }
+        Column(modifier = Modifier.weight(1f)) {
+            val photoSize = (availableHeight - 56.dp).coerceAtLeast(120.dp)
+            poi.photo?.let { photo ->
+                PhotoBlock(photo, poi.name, photoSize, actions, onPhotoClick)
+            } ?: GenericPhoto(photoSize)
         }
         Column(
             modifier = Modifier.weight(1.3f).verticalScroll(rememberScrollState()),
@@ -1205,14 +1271,27 @@ private fun CompassPointer(relativeDegrees: Float, sunRelativeDegrees: Float? = 
     ) {
         drawCircle(color = ring, radius = size.minDimension / 2 - 2f, style = Stroke(width = 3f))
         sunRelativeDegrees?.let { sunAngle ->
-            // The dot sits on the ring, at the sun's angle measured clockwise from the top.
+            // The sun sits on the ring, at its angle measured clockwise from the top: a disc with rays.
             val radians = Math.toRadians(sunAngle.toDouble() - 90)
             val ringRadius = size.minDimension / 2 - 2f
-            val dot = Offset(
+            val sunCentre = Offset(
                 x = center.x + (ringRadius * cos(radians)).toFloat(),
                 y = center.y + (ringRadius * sin(radians)).toFloat(),
             )
-            drawCircle(color = sunColour, radius = size.minDimension * 0.1f, center = dot)
+            val disc = size.minDimension * 0.09f
+            for (ray in 0 until 8) {
+                val angle = Math.toRadians(ray * 45.0)
+                val inner = disc * 1.4f
+                val outer = disc * 2.1f
+                drawLine(
+                    color = sunColour,
+                    start = Offset(sunCentre.x + inner * cos(angle).toFloat(), sunCentre.y + inner * sin(angle).toFloat()),
+                    end = Offset(sunCentre.x + outer * cos(angle).toFloat(), sunCentre.y + outer * sin(angle).toFloat()),
+                    strokeWidth = 2f,
+                    cap = StrokeCap.Round,
+                )
+            }
+            drawCircle(color = sunColour, radius = disc, center = sunCentre)
         }
         val arrow = Path().apply {
             moveTo(size.width / 2, size.height * 0.14f)
@@ -1224,6 +1303,29 @@ private fun CompassPointer(relativeDegrees: Float, sunRelativeDegrees: Float? = 
         rotate(degrees = turn, pivot = center) {
             drawPath(arrow, color = accent)
         }
+    }
+}
+
+/**
+ * Stands in for the photo when a place has none, so the card keeps its shape. It shows the app's own
+ * artwork rather than leaving an empty gap.
+ */
+@Composable
+private fun GenericPhoto(height: Dp) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height)
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(Res.drawable.neargems_mark),
+            contentDescription = "No photo for this place",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxSize(0.6f),
+        )
     }
 }
 

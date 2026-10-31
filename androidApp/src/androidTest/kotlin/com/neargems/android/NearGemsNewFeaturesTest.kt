@@ -106,6 +106,18 @@ class NearGemsNewFeaturesTest {
     }
 
     @Test
+    fun theMuteButtonOnTheHomeScreenSilencesAudio() {
+        val container = container()
+        showApp(container)
+
+        rule.onNodeWithContentDescription("Mute audio").performClick()
+        rule.waitForIdle()
+
+        assertTrue(container.settings.settings.value.muteAudio)
+        rule.onNodeWithContentDescription("Audio muted. Tap to unmute").assertIsDisplayed()
+    }
+
+    @Test
     fun aKeywordTypedInSettingsNarrowsTheSuggestions() {
         val container = container()
         showApp(container)
