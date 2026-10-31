@@ -73,4 +73,12 @@ class KeywordsTest {
         val places = com.neargems.data.OverpassSource.parse(body, fallback = PoiCategory.LANDMARK)
         assertEquals(PoiCategory.LANDMARK, places.single().category)
     }
+
+    @Test
+    fun longKeywordListsAreSentInBatches() {
+        val words = (1..20).map { "word$it" }
+        val batches = com.neargems.data.OverpassSource.namedBatches(words)
+        assertEquals(listOf(8, 8, 4), batches.map { it.size })
+        assertEquals(words, batches.flatten())
+    }
 }
