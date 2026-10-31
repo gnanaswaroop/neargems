@@ -1498,14 +1498,14 @@ private fun SettingsPanel(
         SectionTitle("What to suggest")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PoiCategory.entries.forEach { category ->
-                FilterChip(
+                BulletChip(
+                    label = category.label,
                     selected = category in settings.categories,
                     onClick = {
                         onSettings { s ->
                             s.copy(categories = if (category in s.categories) s.categories - category else s.categories + category)
                         }
                     },
-                    label = { Text(category.label) },
                 )
             }
         }
@@ -1630,6 +1630,39 @@ private fun ActiveKeywordTags(keywords: String, onRemove: (String) -> Unit) {
     }
 }
 
+/** A selectable button with a bullet dot: filled and outlined when chosen, plain when not. */
+@Composable
+private fun BulletChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(50)
+    Row(
+        modifier = Modifier
+            .clip(shape)
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
+            .border(
+                1.dp,
+                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                shape,
+            )
+            .clickable(role = Role.Checkbox, onClick = onClick)
+            .heightIn(min = 40.dp)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
 /** How many voices the picker offers. The best ones come first, so a short list is enough. */
 private const val MAX_VOICE_OPTIONS = 6
 
@@ -1729,12 +1762,12 @@ private fun KeywordTags(keywords: String, onKeywords: (String) -> Unit) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ideas.forEach { word ->
                     val on = word in chosen
-                    FilterChip(
+                    BulletChip(
+                        label = word,
                         selected = on,
                         onClick = {
                             if (on) onKeywords((chosen - word).joinToString(", ")) else add(listOf(word))
                         },
-                        label = { Text(word) },
                     )
                 }
             }
