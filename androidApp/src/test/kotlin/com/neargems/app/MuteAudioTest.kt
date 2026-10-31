@@ -44,7 +44,8 @@ class MuteAudioTest {
         val container = container(keyValues = MemoryStore(), carConnected = true)
         container.refresh()
         awaitUntil { container.state.value.current != null }
-        // Connecting to a car announces the top pick too; only the explicit read-aloud is checked here.
+        // Connecting to a car announces the top pick too. Wait for that, then check only the explicit read-aloud.
+        awaitUntil { spoken.isNotEmpty() }
         spoken.clear()
 
         container.speakCurrent()

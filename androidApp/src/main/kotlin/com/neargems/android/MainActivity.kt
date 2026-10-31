@@ -76,7 +76,11 @@ class MainActivity : ComponentActivity() {
 
     /** Loads suggestions when location is already granted. Otherwise the disclosure screen asks first. */
     private fun onAppStarted() {
-        if (hasLocationPermission()) container.refresh()
+        if (hasLocationPermission()) {
+            container.refresh()
+            // The watch stops when the app is swiped away, so bring it back if the user left it on.
+            if (container.settings.settings.value.watchInBackground) CarWatchService.start(this)
+        }
     }
 
     private fun requestLocation() {

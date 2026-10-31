@@ -1,6 +1,8 @@
 package com.neargems.app
 
 import com.neargems.platform.Narrator
+import com.neargems.platform.SpeechVoice
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Passes speech to the platform narrator unless [muted] says audio is off. Used for every spoken
@@ -12,4 +14,8 @@ class MutingNarrator(private val inner: Narrator, private val muted: () -> Boole
     }
 
     override fun stop() = inner.stop()
+
+    override val voices: StateFlow<List<SpeechVoice>> get() = inner.voices
+
+    override fun useVoice(id: String?) = inner.useVoice(id)
 }

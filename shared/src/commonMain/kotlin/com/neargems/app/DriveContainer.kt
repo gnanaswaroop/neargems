@@ -22,6 +22,7 @@ import com.neargems.platform.MapOpener
 import com.neargems.platform.MemorySeenStore
 import com.neargems.platform.Narrator
 import com.neargems.platform.SeenStore
+import com.neargems.platform.SpeechVoice
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -109,6 +110,9 @@ class DriveContainer(platform: PlatformServices) {
 
     val state: StateFlow<PoiState> = repository.state
 
+    /** The voices the device can read with, for the Voice setting. */
+    val voices: StateFlow<List<SpeechVoice>> = narrator.voices
+
     fun now(): Long = clock()
 
     val carConnected: StateFlow<Boolean> = combine(platform.carConnected, settings.settings) { projecting, s ->
@@ -150,6 +154,7 @@ class DriveContainer(platform: PlatformServices) {
     }
 
     init {
+        narrator.useVoice(settings.settings.value.voice)
         // The compass only moves while the screen is visible.
         scope.launch {
             visible.collectLatest { onScreen ->
@@ -237,8 +242,15 @@ class DriveContainer(platform: PlatformServices) {
             settings.update(transform)
             // Muting also stops anything already being read aloud.
             if (settings.settings.value.muteAudio) narrator.stop()
+            narrator.useVoice(settings.settings.value.voice)
             refreshAsync()
         }
+    }
+
+    /** Picks a voice and reads a short sample, so the choice can be heard straight away. */
+    fun chooseVoice(id: String?) {
+        updateSettings { it.copy(voice = id) }
+        narrator.speak(VOICE_SAMPLE)
     }
 
     fun restoreDismissed() {
@@ -256,8 +268,9 @@ class DriveContainer(platform: PlatformServices) {
     private fun shouldAnnounce(): Boolean =
         carConnected.value && settings.settings.value.announceOnCar
 
-    private companion object {
+    companion object {
         const val REFRESH_INTERVAL_MS = 60_000L
+        const val VOICE_SAMPLE = "This is how this voice sounds, reading out a nearby place."
         /** Fixes closer together than this are GPS jitter, not movement, so they do not change the travel direction. */
         const val MOVING_METERS = 15.0
     }

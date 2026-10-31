@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -17,6 +18,7 @@ import com.neargems.app.DriveContainer
 import com.neargems.app.PlatformServices
 import com.neargems.platform.HeadingSource
 import com.neargems.platform.Narrator
+import com.neargems.platform.SpeechVoice
 import com.neargems.support.Fixtures
 import com.neargems.support.FixedLocation
 import com.neargems.support.MemoryStore
@@ -24,6 +26,8 @@ import com.neargems.support.NoMaps
 import com.neargems.ui.NearGemsApp
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
@@ -89,6 +93,36 @@ class NearGemsNewFeaturesTest {
     }
 
     @Test
+    fun theVoicePickerInSettingsChoosesAVoiceAndSpeaksASample() {
+        val container = container()
+        showApp(container)
+
+        rule.onNodeWithContentDescription("Settings").performClick()
+        rule.onNodeWithText(VOICE_LABEL).performScrollTo().performClick()
+        rule.waitForIdle()
+
+        assertEquals(VOICE_ID, container.settings.settings.value.voice)
+        assertTrue(spoken.contains(DriveContainer.VOICE_SAMPLE))
+    }
+
+    @Test
+    fun aKeywordTypedInSettingsNarrowsTheSuggestions() {
+        val container = container()
+        showApp(container)
+
+        rule.onNodeWithContentDescription("Settings").performClick()
+        rule.onNodeWithText("Keywords, comma-separated").performScrollTo().performTextInput("luigi")
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Done").performClick()
+
+        rule.waitUntil(TIMEOUT_MS) {
+            rule.onAllNodesWithText(Fixtures.RESTAURANT_NAME).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertTrue(rule.onAllNodesWithText(Fixtures.CAFE_NAME).fetchSemanticsNodes().isEmpty())
+        assertEquals("luigi", container.settings.settings.value.keywords)
+    }
+
+    @Test
     fun markAsVisitedHidesThePlaceFromTheCard() {
         val container = container()
         showApp(container)
@@ -128,6 +162,9 @@ class NearGemsNewFeaturesTest {
     }
 
     private class RecordingNarrator(private val spoken: MutableList<String>) : Narrator {
+        override val voices: StateFlow<List<SpeechVoice>> =
+            MutableStateFlow(listOf(SpeechVoice(VOICE_ID, VOICE_LABEL)))
+
         override fun speak(text: String) {
             spoken += text
         }
@@ -142,5 +179,7 @@ class NearGemsNewFeaturesTest {
     private companion object {
         const val TIMEOUT_MS = 10_000L
         const val MUTE_LABEL = "Mute audio, even when a car is connected"
+        const val VOICE_ID = "en-gb-test"
+        const val VOICE_LABEL = "English (UK), high quality"
     }
 }

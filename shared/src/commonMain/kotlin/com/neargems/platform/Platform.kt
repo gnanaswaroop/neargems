@@ -3,6 +3,8 @@ package com.neargems.platform
 import com.neargems.domain.LatLon
 import com.neargems.domain.Poi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /** Device position. Returns null when permission is missing or no fix is available. */
 interface LocationSource {
@@ -20,11 +22,22 @@ interface HeadingSource {
     fun headings(): Flow<Float>
 }
 
+/** A voice the device can read with. [id] is what the app stores; [label] is shown to the user. */
+data class SpeechVoice(val id: String, val label: String)
+
 /** Reads suggestions aloud. Each platform routes this to its own speech engine. */
 interface Narrator {
     fun speak(text: String)
     fun stop()
+
+    /** The voices installed on the device. Empty until the speech engine is ready. */
+    val voices: StateFlow<List<SpeechVoice>> get() = NoVoices
+
+    /** Reads with the voice whose id is [id], or with the device's default voice when null. */
+    fun useVoice(id: String?) = Unit
 }
+
+private val NoVoices: StateFlow<List<SpeechVoice>> = MutableStateFlow(emptyList())
 
 /** Opens a place in the device's maps app, or a web page in the browser. */
 interface MapOpener {

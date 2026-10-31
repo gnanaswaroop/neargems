@@ -3,6 +3,7 @@ package com.neargems.data
 import com.neargems.domain.LatLon
 import com.neargems.domain.PoiCategory
 import com.neargems.domain.PoiRanker
+import com.neargems.domain.parseKeywords
 import com.neargems.domain.RankedPoi
 import com.neargems.domain.distanceMeters
 import com.neargems.domain.speechFor
@@ -146,7 +147,13 @@ class PoiRepository(
 
     private fun publish(radiusMeters: Int, announce: Boolean, searching: Boolean = false) {
         val origin = here ?: return
-        val ranked = PoiRanker.rank(candidates, origin, radiusMeters, settings.dismissedIds() + settings.visitedIds())
+        val ranked = PoiRanker.rank(
+            candidates,
+            origin,
+            radiusMeters,
+            settings.dismissedIds() + settings.visitedIds(),
+            parseKeywords(settings.settings.value.keywords),
+        )
         recordArrivals(ranked)
         val top = ranked.firstOrNull()
         // The place Back would bring back. It is always shown, even after moving past the search radius,

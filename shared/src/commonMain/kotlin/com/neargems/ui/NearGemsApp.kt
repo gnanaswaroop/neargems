@@ -41,7 +41,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -101,6 +100,7 @@ import com.neargems.data.PlaceView
 import com.neargems.data.ThemeMode
 import com.neargems.data.Visit
 import com.neargems.domain.LatLon
+import com.neargems.platform.SpeechVoice
 import com.neargems.domain.Photo
 import com.neargems.domain.Poi
 import com.neargems.domain.PoiCategory
@@ -177,6 +177,7 @@ private fun NearGemsContent(
 ) {
     val state by container.state.collectAsState()
     val settings by container.settings.settings.collectAsState()
+    val voices by container.voices.collectAsState()
     val carConnected by container.carConnected.collectAsState()
     val heading by container.headingDegrees.collectAsState()
     val visits by container.visits.collectAsState()
@@ -254,7 +255,15 @@ private fun NearGemsContent(
                         modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        SettingsPanel(settings, visits, container.now(), container::updateSettings, onWatchChanged)
+                        SettingsPanel(
+                            settings = settings,
+                            visits = visits,
+                            now = container.now(),
+                            voices = voices,
+                            onSettings = container::updateSettings,
+                            onVoice = container::chooseVoice,
+                            onWatchChanged = onWatchChanged,
+                        )
                     }
                 } else if (settings.placeView == PlaceView.LIST) {
                     // The whole list, in portrait and landscape alike. Tapping a place opens it in the modal.
@@ -1248,27 +1257,39 @@ private fun SettingsPanel(
     settings: AppSettings,
     visits: List<Visit>,
     now: Long,
+    voices: List<SpeechVoice>,
     onSettings: ((AppSettings) -> AppSettings) -> Unit,
+    onVoice: (String?) -> Unit,
     onWatchChanged: (Boolean) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionTitle("What to suggest")
-        PoiCategory.entries.forEach { category ->
-            Row(
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Checkbox(
-                    checked = category in settings.categories,
-                    onCheckedChange = { on ->
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PoiCategory.entries.forEach { category ->
+                FilterChip(
+                    selected = category in settings.categories,
+                    onClick = {
                         onSettings { s ->
-                            s.copy(categories = if (on) s.categories + category else s.categories - category)
+                            s.copy(categories = if (category in s.categories) s.categories - category else s.categories + category)
                         }
                     },
+                    label = { Text(category.label) },
                 )
-                Text(category.label, style = MaterialTheme.typography.bodyLarge)
             }
         }
+        // Typed words narrow the places to ones whose name or description contains them.
+        var keywords by remember { mutableStateOf(settings.keywords) }
+        OutlinedTextField(
+            value = keywords,
+            onValueChange = { typed ->
+                keywords = typed
+                onSettings { it.copy(keywords = typed) }
+            },
+            label = { Text("Keywords, comma-separated") },
+            placeholder = { Text("temple, church, waterfall") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
 
         SectionTitle("Search radius")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1289,6 +1310,29 @@ private fun SettingsPanel(
                     onClick = { onSettings { it.copy(themeMode = mode) } },
                     label = { Text(mode.label()) },
                 )
+            }
+        }
+
+        SectionTitle("Voice")
+        if (voices.isEmpty()) {
+            Text(
+                "Voices appear here once the speech engine is ready.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        } else {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = settings.voice == null,
+                    onClick = { onVoice(null) },
+                    label = { Text("Device default") },
+                )
+                voices.forEach { voice ->
+                    FilterChip(
+                        selected = settings.voice == voice.id,
+                        onClick = { onVoice(voice.id) },
+                        label = { Text(voice.label) },
+                    )
+                }
             }
         }
 
