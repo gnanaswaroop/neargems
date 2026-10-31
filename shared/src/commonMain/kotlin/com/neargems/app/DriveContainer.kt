@@ -353,11 +353,17 @@ class DriveContainer(platform: PlatformServices) {
 
     fun updateSettings(transform: (AppSettings) -> AppSettings) {
         scope.launch {
+            val before = settings.settings.value
             settings.update(transform)
+            val after = settings.settings.value
             // Muting also stops anything already being read aloud.
-            if (settings.settings.value.muteAudio) narrator.stop()
-            narrator.useVoice(settings.settings.value.voice)
-            refreshAsync()
+            if (after.muteAudio) narrator.stop()
+            narrator.useVoice(after.voice)
+            // A change to what is searched for always starts a fresh search, not a re-ranking of the old results.
+            val criteriaChanged = before.categories != after.categories ||
+                before.keywords != after.keywords ||
+                before.radiusMeters != after.radiusMeters
+            if (criteriaChanged) repository.refresh(announce = shouldAnnounce(), force = true) else refreshAsync()
         }
     }
 
