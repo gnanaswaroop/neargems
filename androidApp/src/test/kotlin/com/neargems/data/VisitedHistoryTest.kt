@@ -99,4 +99,17 @@ class VisitedHistoryTest {
         assertTrue(container.visited.value.isEmpty())
         assertFalse(container.settings.visitedIds().contains("osm:node:9"))
     }
+
+    @Test
+    fun aVisitedPlaceCountsWhenItIsNearbyAndMatchesAFilter() {
+        val origin = LatLon(51.5080, -0.1281)
+        val cafe = VisitedPlace("a", "Corner Cafe", PoiCategory.CAFE, LatLon(51.5081, -0.1280), 1L)
+        val temple = VisitedPlace("b", "Shiva Temple", PoiCategory.LANDMARK, LatLon(51.5081, -0.1280), 1L)
+        val far = VisitedPlace("c", "Far Cafe", PoiCategory.CAFE, LatLon(53.0, -1.0), 1L)
+
+        assertTrue(cafe.matches(origin, 1000, setOf(PoiCategory.CAFE), emptyList()))
+        assertFalse(cafe.matches(origin, 1000, setOf(PoiCategory.LANDMARK), emptyList()))
+        assertTrue(temple.matches(origin, 1000, emptySet(), listOf("temple")))
+        assertFalse(far.matches(origin, 1000, setOf(PoiCategory.CAFE), emptyList()))
+    }
 }

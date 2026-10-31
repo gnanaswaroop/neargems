@@ -49,6 +49,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -122,6 +123,7 @@ import com.neargems.data.ThemeMode
 import com.neargems.data.Visit
 import com.neargems.domain.LatLon
 import com.neargems.data.VisitedPlace
+import com.neargems.data.matches
 import com.neargems.platform.SpeechVoice
 import com.neargems.shared.generated.resources.Res
 import com.neargems.shared.generated.resources.neargems_mark
@@ -275,132 +277,155 @@ private fun NearGemsContent(
             // The queue takes less width on narrow tablets, so the place card keeps room for its buttons.
             val queueWidth = if (maxWidth < 720.dp) 240.dp else 340.dp
             val landscapePhone = twoPane && maxHeight < WIDE_MAX_HEIGHT
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            PullToRefreshBox(
+                isRefreshing = state.searching || state.loading,
+                onRefresh = { container.refresh() },
+                modifier = Modifier.fillMaxSize(),
             ) {
-                TopBar(
-                    showSettings = showSettings,
-                    connected = carConnected,
-                    simulated = settings.simulateCar,
-                    muted = settings.muteAudio,
-                    onToggleMute = { container.updateSettings { it.copy(muteAudio = !it.muteAudio) } },
-                    showHistory = showHistory,
-                    onToggleHistory = {
-                        showHistory = !showHistory
-                        showSettings = false
-                    },
-                    onToggleSettings = {
-                        showSettings = !showSettings
-                        showHistory = false
-                    },
-                    onQuit = onQuit,
-                )
-
-                // A thin bar while a search runs, so results trickling in read as progress. The space is
-                // always kept, so the layout does not jump when it comes and goes.
-                Box(modifier = Modifier.fillMaxWidth().height(3.dp)) {
-                    if (state.searching && !showSettings && places.isNotEmpty()) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxSize())
-                    }
-                }
-
-                // A warning about the search, such as a keyword search that could not be reached.
-                state.warning?.takeIf { !showSettings && !showHistory }?.let { WarningBanner(it) }
-
-                if (!showSettings && !showHistory && settings.keywords.isNotBlank()) {
-                    ActiveKeywordTags(
-                        keywords = settings.keywords,
-                        onRemove = { word ->
-                            container.updateSettings { s ->
-                                s.copy(keywords = (parseKeywords(s.keywords) - word).joinToString(", "))
-                            }
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    TopBar(
+                        showSettings = showSettings,
+                        connected = carConnected,
+                        simulated = settings.simulateCar,
+                        muted = settings.muteAudio,
+                        onToggleMute = { container.updateSettings { it.copy(muteAudio = !it.muteAudio) } },
+                        showHistory = showHistory,
+                        onToggleHistory = {
+                            showHistory = !showHistory
+                            showSettings = false
                         },
+                        onToggleSettings = {
+                            showSettings = !showSettings
+                            showHistory = false
+                        },
+                        onQuit = onQuit,
                     )
-                }
 
-                if (showHistory) {
-                    Column(
-                        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        HistoryPanel(
-                            visited = visited,
-                            now = container.now(),
-                            onShowAgain = container::showAgain,
-                            onOpenMap = container::openVisited,
+                    // A thin bar while a search runs, so results trickling in read as progress. The space is
+                    // always kept, so the layout does not jump when it comes and goes.
+                    Box(modifier = Modifier.fillMaxWidth().height(3.dp)) {
+                        if (state.searching && !showSettings && places.isNotEmpty()) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxSize())
+                        }
+                    }
+
+                    // A warning about the search, such as a keyword search that could not be reached.
+                    state.warning?.takeIf { !showSettings && !showHistory }?.let { WarningBanner(it) }
+
+                    // Visited places still nearby that match the filters are hidden from the cards, so count them here.
+                    val nearbyVisited = state.position?.let { origin ->
+                        visited.count {
+                            it.matches(origin, settings.radiusMeters, settings.categories, parseKeywords(settings.keywords))
+                        }
+                    } ?: 0
+                    if (nearbyVisited > 0 && !showSettings && !showHistory) {
+                        Text(
+                            "$nearbyVisited visited ${if (nearbyVisited == 1) "place" else "places"} nearby match your filters. View",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clickable(role = Role.Button) { showHistory = true }
+                                .padding(vertical = 4.dp),
                         )
                     }
-                } else if (showSettings) {
-                    Column(
-                        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        SettingsPanel(
-                            settings = settings,
-                            visits = visits,
-                            now = container.now(),
-                            voices = voices,
-                            posture = posture,
-                            onSettings = container::updateSettings,
-                            onVoice = container::chooseVoice,
-                            onWatchChanged = onWatchChanged,
+
+                    if (!showSettings && !showHistory && settings.keywords.isNotBlank()) {
+                        ActiveKeywordTags(
+                            keywords = settings.keywords,
+                            onRemove = { word ->
+                                container.updateSettings { s ->
+                                    s.copy(keywords = (parseKeywords(s.keywords) - word).joinToString(", "))
+                                }
+                            },
                         )
                     }
-                } else if (settings.placeView == PlaceView.LIST) {
-                    // The whole list, in portrait and landscape alike. Tapping a place opens it in the modal.
-                    PlaceListArea(
-                        state = state,
-                        actions = actions,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                    )
-                } else if (landscapePhone) {
-                    // Landscape phones: the place gets the full width, with its photo beside the details.
-                    Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                        SuggestionArea(
+
+                    if (showHistory) {
+                        Column(
+                            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            HistoryPanel(
+                                visited = visited,
+                                now = container.now(),
+                                onShowAgain = container::showAgain,
+                                onOpenMap = container::openVisited,
+                            )
+                        }
+                    } else if (showSettings) {
+                        Column(
+                            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            SettingsPanel(
+                                settings = settings,
+                                visits = visits,
+                                now = container.now(),
+                                voices = voices,
+                                posture = posture,
+                                onSettings = container::updateSettings,
+                                onVoice = container::chooseVoice,
+                                onWatchChanged = onWatchChanged,
+                            )
+                        }
+                    } else if (settings.placeView == PlaceView.LIST) {
+                        // The whole list, in portrait and landscape alike. Tapping a place opens it in the modal.
+                        PlaceListArea(
                             state = state,
-                            places = places,
-                            from = state.position,
-                            heading = heading,
-                            large = true,
-                            wide = true,
                             actions = actions,
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                         )
-                        state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
-                    }
-                } else if (twoPane) {
-                    Row(
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(28.dp),
-                    ) {
-                        QueuePane(state = state, actions = actions, width = queueWidth)
-                        Column(modifier = Modifier.weight(1f).fillMaxSize()) {
+                    } else if (landscapePhone) {
+                        // Landscape phones: the place gets the full width, with its photo beside the details.
+                        Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
                             SuggestionArea(
                                 state = state,
                                 places = places,
                                 from = state.position,
                                 heading = heading,
                                 large = true,
+                                wide = true,
                                 actions = actions,
                                 modifier = Modifier.weight(1f).fillMaxWidth(),
                             )
                             state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
                         }
+                    } else if (twoPane) {
+                        Row(
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(28.dp),
+                        ) {
+                            QueuePane(state = state, actions = actions, width = queueWidth)
+                            Column(modifier = Modifier.weight(1f).fillMaxSize()) {
+                                SuggestionArea(
+                                    state = state,
+                                    places = places,
+                                    from = state.position,
+                                    heading = heading,
+                                    large = true,
+                                    actions = actions,
+                                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                                )
+                                state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
+                            }
+                        }
+                    } else {
+                        SuggestionArea(
+                            state = state,
+                            places = places,
+                            from = state.position,
+                            heading = heading,
+                            large = false,
+                            actions = actions,
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                        )
+                        state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
                     }
-                } else {
-                    SuggestionArea(
-                        state = state,
-                        places = places,
-                        from = state.position,
-                        heading = heading,
-                        large = false,
-                        actions = actions,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                    )
-                    state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
                 }
             }
         }

@@ -62,3 +62,18 @@ class VisitedHistory(private val store: KeyValueStore) {
         const val KEY = "visited_places"
     }
 }
+
+/**
+ * Whether a visited place is still worth showing: it is within [radiusMeters] of [origin], and it is in a
+ * chosen category or its name contains a chosen keyword. The same rule the suggestions use.
+ */
+fun VisitedPlace.matches(
+    origin: LatLon,
+    radiusMeters: Int,
+    categories: Set<PoiCategory>,
+    keywords: List<String>,
+): Boolean {
+    if (com.neargems.domain.distanceMeters(origin, location) > radiusMeters) return false
+    val byName = keywords.any { it in name.lowercase() }
+    return category in categories || byName
+}
