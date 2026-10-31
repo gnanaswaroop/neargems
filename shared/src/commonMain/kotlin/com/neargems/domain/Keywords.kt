@@ -15,8 +15,10 @@ fun Poi.matchesKeywords(keywords: List<String>): Boolean {
 private val TRANSPORT_WORDS = listOf("station", "railway", "tram stop", "bus stop", "halt")
 
 /** Stations and stops are not places to visit, so they are never suggested as landmarks. */
-fun Poi.isTransportStop(): Boolean {
+fun Poi.isTransportStop(keywords: List<String> = emptyList()): Boolean {
     if (category != PoiCategory.LANDMARK) return false
     val name = name.lowercase()
+    // A station the user asked for by keyword is not filtered out.
+    if (keywords.any { it in name }) return false
     return TRANSPORT_WORDS.any { it in name }
 }

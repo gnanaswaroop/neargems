@@ -6,10 +6,11 @@ val SUGGESTED_KEYWORDS: List<String> = listOf(
     "temple", "church", "cathedral", "mosque", "gurdwara", "synagogue", "shrine",
     // Culture and history
     "museum", "gallery", "theatre", "library", "mural", "statue", "monument", "memorial",
+    "architecture", "public building",
     "castle", "palace", "historic", "heritage",
     // Outdoors and scenery
     "park", "garden", "waterfall", "viewpoint", "lake", "beach", "pier", "lighthouse",
-    "woodland", "hill", "river", "canal",
+    "woodland", "hill", "river", "canal", "bridge",
     // Food
     "vegan", "vegetarian", "pizza", "sushi", "curry", "dim sum", "bakery", "brunch", "ramen",
     "tapas", "kebab", "ice cream", "street food", "dessert", "seafood",
@@ -18,6 +19,7 @@ val SUGGESTED_KEYWORDS: List<String> = listOf(
     "jazz", "tea room",
     // Fun and shopping
     "cinema", "aquarium", "zoo", "market", "bookshop", "arcade", "climbing",
+    "airport", "railway station",
 )
 
 /**

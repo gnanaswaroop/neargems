@@ -166,6 +166,7 @@ class PoiRepository(
             origin,
             radiusMeters,
             settings.dismissedIds() + settings.visitedIds(),
+            parseKeywords(settings.settings.value.keywords),
         )
         recordArrivals(ranked)
         val top = ranked.firstOrNull()
