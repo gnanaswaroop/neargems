@@ -56,6 +56,9 @@ class PoiRepository(
     private var fetchedFor: FetchKey? = null
     private var candidates: List<com.neargems.domain.Poi> = emptyList()
     private var announcedId: String? = null
+
+    /** The top place being read aloud. Speech stops once that place is no longer the top card. */
+    private var speakingId: String? = null
     /** Places passed with Next this session, most recent last, so they can be brought back. */
     private val passed = ArrayDeque<RankedPoi>()
 
@@ -123,6 +126,8 @@ class PoiRepository(
 
     /** Hides the current suggestion and shows the next one, announcing it if [announce] is set. */
     suspend fun next(announce: Boolean, shown: RankedPoi? = null) {
+        // The dismissed place is no longer on screen, so stop reading it out straight away.
+        stopSpeaking()
         mutex.withLock {
             val current = shown ?: _state.value.current ?: return
             settings.dismiss(current.poi.id)
@@ -141,15 +146,24 @@ class PoiRepository(
     }
 
     fun speakCurrent() {
-        _state.value.current?.let { narrator.speak(speechFor(it)) }
+        _state.value.current?.let { readAloud(it) }
     }
 
     /** Reads aloud the place the user is looking at, which may not be the top pick. */
     fun speakPlace(ranked: RankedPoi) {
+        readAloud(ranked)
+    }
+
+    /** Speaks [ranked]. Only the top card is tracked, so a place picked from the list is read to the end. */
+    private fun readAloud(ranked: RankedPoi) {
+        speakingId = ranked.poi.id.takeIf { ranked.poi.id == _state.value.current?.poi?.id }
         narrator.speak(speechFor(ranked))
     }
 
-    fun stopSpeaking() = narrator.stop()
+    fun stopSpeaking() {
+        speakingId = null
+        narrator.stop()
+    }
 
     /** Forgets the last announcement so the next suggestion is read out again, e.g. on a new car connection. */
     fun resetAnnouncement() {
@@ -170,6 +184,8 @@ class PoiRepository(
         )
         recordArrivals(ranked)
         val top = ranked.firstOrNull()
+        // The place being read has left the top card: dismissed, visited, moved away or out of range.
+        if (speakingId != null && top?.poi?.id != speakingId) stopSpeaking()
         // The place Back would bring back. It is always shown, even after moving past the search radius,
         // so the left-hand card is there whenever Back is; only its distance is taken from here.
         val previous = passed.lastOrNull()?.let { RankedPoi(it.poi, distanceMeters(origin, it.poi.location), it.poi.interest) }
@@ -207,7 +223,7 @@ class PoiRepository(
         _state.value = _state.value.copy(warning = keywordWarning)
         if (top != null && announce && top.poi.id != announcedId) {
             announcedId = top.poi.id
-            narrator.speak(speechFor(top))
+            readAloud(top)
         }
     }
 
