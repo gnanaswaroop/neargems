@@ -75,7 +75,7 @@ fun MiniMap(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(height)
+            .then(if (height != Dp.Unspecified) Modifier.height(height) else Modifier)
             .semantics {
                 contentDescription = "Map showing your position and the place, ${formatDistance(distance)} apart"
             }
