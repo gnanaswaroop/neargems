@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -36,6 +37,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** The app works without notifications, so a refusal is not reported. */
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         locationNeeded.value = !hasLocationPermission()
@@ -48,6 +54,7 @@ class MainActivity : ComponentActivity() {
                 locationDenied = locationDenied.value,
                 onAllowLocation = ::requestLocation,
                 onOpenSettings = ::openAppSettings,
+                onQuit = ::quit,
             )
         }
     }
@@ -76,7 +83,15 @@ class MainActivity : ComponentActivity() {
 
     /** Loads suggestions when location is already granted. Otherwise the disclosure screen asks first. */
     private fun onAppStarted() {
-        if (hasLocationPermission()) container.refresh()
+        // Notifications show the place on screen and announce new ones. Android 13 and later ask first.
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        if (hasLocationPermission()) {
+            container.refresh()
+            // The watch stops when the app is swiped away, so bring it back if the user left it on.
+            if (container.settings.settings.value.watchInBackground) CarWatchService.start(this)
+        }
     }
 
     private fun requestLocation() {
@@ -92,6 +107,14 @@ class MainActivity : ComponentActivity() {
 
     private fun hasLocationPermission(): Boolean =
         LOCATION_PERMISSIONS.any { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+
+    /** Shuts NearGems down: stops car watching, removes the app from recents, and ends the process. */
+    private fun quit() {
+        CarWatchService.stop(this)
+        getSystemService(android.app.NotificationManager::class.java).cancel(2)
+        finishAndRemoveTask()
+        android.os.Process.killProcess(android.os.Process.myPid())
+    }
 
     private fun onWatchChanged(on: Boolean) {
         if (on) CarWatchService.start(this) else CarWatchService.stop(this)

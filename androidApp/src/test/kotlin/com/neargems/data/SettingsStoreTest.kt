@@ -56,6 +56,19 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun audioIsNotMutedByDefault() {
+        assertEquals(false, SettingsStore(MemoryStore()) { 0L }.settings.value.muteAudio)
+    }
+
+    @Test
+    fun theMuteChoiceIsSavedAndReadBackAfterARestart() {
+        val store = MemoryStore()
+        SettingsStore(store) { 0L }.update { it.copy(muteAudio = true) }
+
+        assertEquals(true, SettingsStore(store) { 0L }.settings.value.muteAudio)
+    }
+
+    @Test
     fun theChosenPlaceViewIsRememberedAfterARestart() {
         val store = MemoryStore()
         SettingsStore(store) { 0L }.update { it.copy(placeView = PlaceView.LIST) }

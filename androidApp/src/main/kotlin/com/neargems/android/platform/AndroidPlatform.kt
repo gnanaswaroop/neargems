@@ -15,6 +15,7 @@ import com.neargems.platform.KeyValueStore
 import com.neargems.platform.LocationSource
 import com.neargems.platform.MapOpener
 import com.neargems.platform.Narrator
+import com.neargems.platform.SpeechVoice
 import android.os.Looper
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -23,6 +24,9 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
@@ -90,6 +94,11 @@ class AndroidNarrator(context: Context) : Narrator {
     private var focusRequest: AudioFocusRequest? = null
     private var ready = false
     private var pending: String? = null
+    /** The voice the user chose, by id. Null uses the device default. */
+    private var chosenVoice: String? = null
+    private val voiceList = MutableStateFlow<List<SpeechVoice>>(emptyList())
+
+    override val voices: StateFlow<List<SpeechVoice>> = voiceList.asStateFlow()
 
     private val tts: TextToSpeech = TextToSpeech(context.applicationContext) { status -> onInit(status) }
 
@@ -97,6 +106,8 @@ class AndroidNarrator(context: Context) : Narrator {
         if (status != TextToSpeech.SUCCESS) return
         tts.language = Locale.getDefault()
         tts.setAudioAttributes(attributes)
+        voiceList.value = speakableVoices()
+        applyVoice()
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) = Unit
             override fun onDone(utteranceId: String?) = abandonFocus()
@@ -113,6 +124,45 @@ class AndroidNarrator(context: Context) : Narrator {
             return
         }
         speakNow(text)
+    }
+
+    override fun useVoice(id: String?) {
+        chosenVoice = id
+        if (ready) applyVoice()
+    }
+
+    /** Voices in the user's language, best quality first, offline before online. */
+    private fun speakableVoices(): List<SpeechVoice> {
+        val language = Locale.getDefault().language
+        val installed = tts.voices.orEmpty()
+            .filter { it.locale.language == language }
+            .sortedWith(compareBy<android.speech.tts.Voice> { it.isNetworkConnectionRequired }.thenByDescending { it.quality })
+            // The best voice of each accent (US, UK, India, Australia...) comes first, so a short list still has them all.
+            .let { sorted ->
+                val best = sorted.groupBy { it.locale.country }.values.map { it.first() }
+                best + sorted.filter { it !in best }
+            }
+        val labels = installed.map { voice ->
+            val quality = when {
+                voice.quality >= QUALITY_VERY_HIGH -> "very high quality"
+                voice.quality >= QUALITY_HIGH -> "high quality"
+                else -> "standard quality"
+            }
+            val online = if (voice.isNetworkConnectionRequired) ", online" else ""
+            "${voice.locale.displayName}, $quality$online"
+        }
+        val counts = labels.groupingBy { it }.eachCount()
+        val seen = mutableMapOf<String, Int>()
+        return installed.mapIndexed { index, voice ->
+            val label = labels[index]
+            val number = if ((counts[label] ?: 0) > 1) " ${seen.merge(label, 1, Int::plus)}" else ""
+            SpeechVoice(id = voice.name, label = label + number)
+        }
+    }
+
+    private fun applyVoice() {
+        val voice = tts.voices.orEmpty().firstOrNull { it.name == chosenVoice } ?: tts.defaultVoice
+        if (voice != null) tts.voice = voice
     }
 
     override fun stop() {
@@ -142,6 +192,8 @@ class AndroidNarrator(context: Context) : Narrator {
 
     private companion object {
         const val UTTERANCE_ID = "neargems-suggestion"
+        const val QUALITY_HIGH = 400
+        const val QUALITY_VERY_HIGH = 500
     }
 }
 

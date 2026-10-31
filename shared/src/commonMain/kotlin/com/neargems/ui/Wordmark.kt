@@ -29,4 +29,5 @@ fun Wordmark(modifier: Modifier = Modifier, height: Dp = TITLE_HEIGHT) {
     )
 }
 
-private val TITLE_HEIGHT = 56.dp
+// The same height as the icons beside it, so the title and icons share one centre line.
+private val TITLE_HEIGHT = 26.dp

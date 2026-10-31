@@ -1,5 +1,6 @@
 package com.neargems.ui
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -12,6 +13,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -35,23 +37,31 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
@@ -62,12 +72,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.layout.ContentScale
@@ -77,6 +89,9 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.AssistChip
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -91,7 +106,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.automirrored.outlined.VolumeOff
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.PowerSettingsNew
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.Settings
 import com.neargems.app.DriveContainer
@@ -101,17 +122,30 @@ import com.neargems.data.PlaceView
 import com.neargems.data.ThemeMode
 import com.neargems.data.Visit
 import com.neargems.domain.LatLon
+import com.neargems.data.VisitedPlace
+import com.neargems.data.matches
+import com.neargems.platform.SpeechVoice
+import com.neargems.shared.generated.resources.Res
+import com.neargems.shared.generated.resources.neargems_mark
+import org.jetbrains.compose.resources.painterResource
 import com.neargems.domain.Photo
 import com.neargems.domain.Poi
 import com.neargems.domain.PoiCategory
 import com.neargems.domain.RankedPoi
 import com.neargems.domain.bearingDegrees
+import com.neargems.domain.PhonePosture
+import com.neargems.domain.parseKeywords
+import com.neargems.domain.SUGGESTED_KEYWORDS
+import com.neargems.domain.SunPosition
 import com.neargems.domain.compassPoint
 import com.neargems.domain.driveMinutes
 import com.neargems.domain.formatDistance
 import com.neargems.domain.summarise
 import com.neargems.domain.walkMinutes
+import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 private val RADIUS_OPTIONS = listOf(500 to "500 m", 1000 to "1 km", 2000 to "2 km", 5000 to "5 km")
 
@@ -154,15 +188,24 @@ fun NearGemsApp(
     locationDenied: Boolean = false,
     onAllowLocation: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onQuit: () -> Unit = {},
 ) {
     val seenIds by container.seenIds.collectAsState()
-    CompositionLocalProvider(LocalSeenIds provides seenIds) {
-        NearGemsContent(container, onStart, onWatchChanged, locationNeeded, locationDenied, onAllowLocation, onOpenSettings)
+    val sun by container.sun.collectAsState()
+    val phoneHeading by container.headingDegrees.collectAsState()
+    CompositionLocalProvider(LocalSeenIds provides seenIds, LocalSunPosition provides sun, LocalPhoneHeading provides phoneHeading) {
+        NearGemsContent(container, onStart, onWatchChanged, locationNeeded, locationDenied, onAllowLocation, onOpenSettings, onQuit)
     }
 }
 
 /** The ids of the places the user has seen, for the badges, without passing them through every screen. */
 private val LocalSeenIds = compositionLocalOf<Set<String>> { emptySet() }
+
+/** Where the sun is from the user's position, or null before the first fix. Read by the compass on each card. */
+private val LocalSunPosition = compositionLocalOf<SunPosition?> { null }
+
+/** Which way the phone faces, from north, or null when unknown. Turns the mini map so that way is up. */
+private val LocalPhoneHeading = compositionLocalOf<Float?> { null }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -174,13 +217,18 @@ private fun NearGemsContent(
     locationDenied: Boolean,
     onAllowLocation: () -> Unit,
     onOpenSettings: () -> Unit,
+    onQuit: () -> Unit,
 ) {
     val state by container.state.collectAsState()
     val settings by container.settings.settings.collectAsState()
+    val voices by container.voices.collectAsState()
+    val posture by container.posture.collectAsState()
     val carConnected by container.carConnected.collectAsState()
     val heading by container.headingDegrees.collectAsState()
     val visits by container.visits.collectAsState()
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showHistory by rememberSaveable { mutableStateOf(false) }
+    val visited by container.visited.collectAsState()
     // The disclosure comes before each system location prompt.
     var disclosed by remember { mutableStateOf(false) }
     PlatformBackHandler(enabled = showSettings) { showSettings = false }
@@ -196,6 +244,8 @@ private fun NearGemsContent(
         onRestoreDismissed = container::restoreDismissed,
         onOpenUrl = container::openUrl,
         onSeen = container::markSeen,
+        onShown = container::showing,
+        onVisited = container::markVisited,
     )
     val places = listOfNotNull(state.current) + state.upcoming
 
@@ -225,87 +275,158 @@ private fun NearGemsContent(
                 .clipToBounds(),
         ) {
             val twoPane = maxWidth >= TWO_PANE_MIN_WIDTH
+            // The queue takes less width on narrow tablets, so the place card keeps room for its buttons.
+            val queueWidth = if (maxWidth < 720.dp) 240.dp else 340.dp
             val landscapePhone = twoPane && maxHeight < WIDE_MAX_HEIGHT
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            PullToRefreshBox(
+                isRefreshing = state.searching || state.loading,
+                onRefresh = { container.pullToRefresh() },
+                modifier = Modifier.fillMaxSize(),
             ) {
-                TopBar(
-                    showSettings = showSettings,
-                    connected = carConnected,
-                    simulated = settings.simulateCar,
-                    onToggleSettings = { showSettings = !showSettings },
-                )
-
-                // A thin bar while a search runs, so results trickling in read as progress. The space is
-                // always kept, so the layout does not jump when it comes and goes.
-                Box(modifier = Modifier.fillMaxWidth().height(3.dp)) {
-                    if (state.searching && !showSettings && places.isNotEmpty()) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxSize())
-                    }
-                }
-
-                if (showSettings) {
-                    Column(
-                        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        SettingsPanel(settings, visits, container.now(), container::updateSettings, onWatchChanged)
-                    }
-                } else if (settings.placeView == PlaceView.LIST) {
-                    // The whole list, in portrait and landscape alike. Tapping a place opens it in the modal.
-                    PlaceListArea(
-                        state = state,
-                        actions = actions,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    TopBar(
+                        showSettings = showSettings,
+                        connected = carConnected,
+                        simulated = settings.simulateCar,
+                        muted = settings.muteAudio,
+                        onToggleMute = { container.updateSettings { it.copy(muteAudio = !it.muteAudio) } },
+                        showHistory = showHistory,
+                        onToggleHistory = {
+                            showHistory = !showHistory
+                            showSettings = false
+                        },
+                        onToggleSettings = {
+                            showSettings = !showSettings
+                            showHistory = false
+                        },
+                        onQuit = onQuit,
                     )
-                } else if (landscapePhone) {
-                    // Landscape phones: the place gets the full width, with its photo beside the details.
-                    Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                        SuggestionArea(
+
+                    // A thin bar while a search runs, so results trickling in read as progress. The space is
+                    // always kept, so the layout does not jump when it comes and goes.
+                    Box(modifier = Modifier.fillMaxWidth().height(3.dp)) {
+                        if (state.searching && !showSettings && places.isNotEmpty()) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxSize())
+                        }
+                    }
+
+                    // A warning about the search, such as a keyword search that could not be reached.
+                    state.warning?.takeIf { !showSettings && !showHistory }?.let { WarningBanner(it) }
+
+                    // Visited places still nearby that match the filters are hidden from the cards, so count them here.
+                    val nearbyVisited = state.position?.let { origin ->
+                        visited.count {
+                            it.matches(origin, settings.radiusMeters, settings.categories, parseKeywords(settings.keywords))
+                        }
+                    } ?: 0
+                    if (nearbyVisited > 0 && !showSettings && !showHistory) {
+                        Text(
+                            "$nearbyVisited visited ${if (nearbyVisited == 1) "place" else "places"} nearby match your filters. View",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clickable(role = Role.Button) { showHistory = true }
+                                .padding(vertical = 4.dp),
+                        )
+                    }
+
+                    if (!showSettings && !showHistory && settings.keywords.isNotBlank()) {
+                        ActiveKeywordTags(
+                            keywords = settings.keywords,
+                            onRemove = { word ->
+                                container.updateSettings { s ->
+                                    s.copy(keywords = (parseKeywords(s.keywords) - word).joinToString(", "))
+                                }
+                            },
+                        )
+                    }
+
+                    if (showHistory) {
+                        Column(
+                            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            HistoryPanel(
+                                visited = visited,
+                                now = container.now(),
+                                onShowAgain = container::showAgain,
+                                onOpenMap = container::openVisited,
+                            )
+                        }
+                    } else if (showSettings) {
+                        Column(
+                            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            SettingsPanel(
+                                settings = settings,
+                                visits = visits,
+                                now = container.now(),
+                                voices = voices,
+                                posture = posture,
+                                onSettings = container::updateSettings,
+                                onVoice = container::chooseVoice,
+                                onWatchChanged = onWatchChanged,
+                            )
+                        }
+                    } else if (settings.placeView == PlaceView.LIST) {
+                        // The whole list, in portrait and landscape alike. Tapping a place opens it in the modal.
+                        PlaceListArea(
                             state = state,
-                            places = places,
-                            from = state.position,
-                            heading = heading,
-                            large = true,
-                            wide = true,
                             actions = actions,
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                         )
-                        state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
-                    }
-                } else if (twoPane) {
-                    Row(
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(28.dp),
-                    ) {
-                        QueuePane(state = state, actions = actions)
-                        Column(modifier = Modifier.weight(1f).fillMaxSize()) {
+                    } else if (landscapePhone) {
+                        // Landscape phones: the place gets the full width, with its photo beside the details.
+                        Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
                             SuggestionArea(
                                 state = state,
                                 places = places,
                                 from = state.position,
                                 heading = heading,
                                 large = true,
+                                wide = true,
                                 actions = actions,
                                 modifier = Modifier.weight(1f).fillMaxWidth(),
                             )
                             state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
                         }
+                    } else if (twoPane) {
+                        Row(
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(28.dp),
+                        ) {
+                            QueuePane(state = state, actions = actions, width = queueWidth)
+                            Column(modifier = Modifier.weight(1f).fillMaxSize()) {
+                                SuggestionArea(
+                                    state = state,
+                                    places = places,
+                                    from = state.position,
+                                    heading = heading,
+                                    large = true,
+                                    actions = actions,
+                                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                                )
+                                state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
+                            }
+                        }
+                    } else {
+                        SuggestionArea(
+                            state = state,
+                            places = places,
+                            from = state.position,
+                            heading = heading,
+                            large = false,
+                            actions = actions,
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                        )
+                        state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
                     }
-                } else {
-                    SuggestionArea(
-                        state = state,
-                        places = places,
-                        from = state.position,
-                        heading = heading,
-                        large = false,
-                        actions = actions,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                    )
-                    state.current?.let { ActionBar(actions, canGoBack = state.hasPrevious) }
                 }
             }
         }
@@ -430,11 +551,23 @@ private class Actions(
     val onRestoreDismissed: () -> Unit,
     val onOpenUrl: (String) -> Unit,
     val onSeen: (Poi) -> Unit,
+    val onShown: (RankedPoi?) -> Unit,
+    val onVisited: (RankedPoi) -> Unit,
 )
 
 /** Title row: the wordmark, the connection icon (car, with a status dot), and Settings. */
 @Composable
-private fun TopBar(showSettings: Boolean, connected: Boolean, simulated: Boolean, onToggleSettings: () -> Unit) {
+private fun TopBar(
+    showSettings: Boolean,
+    connected: Boolean,
+    simulated: Boolean,
+    muted: Boolean,
+    onToggleMute: () -> Unit,
+    showHistory: Boolean,
+    onToggleHistory: () -> Unit,
+    onToggleSettings: () -> Unit,
+    onQuit: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -443,11 +576,36 @@ private fun TopBar(showSettings: Boolean, connected: Boolean, simulated: Boolean
         Wordmark(modifier = Modifier.weight(1f))
         ConnectionIcon(connected = connected, simulated = simulated)
         Spacer(Modifier.width(4.dp))
+        // Mute sits on the home screen as well as in Settings, so it can be reached while driving.
+        IconButton(onClick = onToggleMute, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = if (muted) Icons.AutoMirrored.Outlined.VolumeOff else Icons.AutoMirrored.Outlined.VolumeUp,
+                contentDescription = if (muted) "Audio muted. Tap to unmute" else "Mute audio",
+                tint = if (muted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(28.dp),
+            )
+        }
+        IconButton(onClick = onToggleHistory, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.History,
+                contentDescription = if (showHistory) "Close visited places" else "Visited places",
+                tint = if (showHistory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(28.dp),
+            )
+        }
         // A plain icon, like the car beside it: no border, so it reads as an icon rather than a button.
         IconButton(onClick = onToggleSettings, modifier = Modifier.size(40.dp)) {
             Icon(
                 imageVector = if (showSettings) Icons.Outlined.Check else Icons.Outlined.Settings,
                 contentDescription = if (showSettings) "Done" else "Settings",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(28.dp),
+            )
+        }
+        IconButton(onClick = onQuit, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.PowerSettingsNew,
+                contentDescription = "Quit NearGems",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(28.dp),
             )
@@ -467,12 +625,12 @@ private fun ConnectionIcon(connected: Boolean, simulated: Boolean) {
         else -> "Not connected to a car"
     }
     val tint = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Box(modifier = Modifier.size(32.dp).semantics { contentDescription = label }) {
+    Box(modifier = Modifier.size(28.dp).semantics { contentDescription = label }) {
         Icon(
             imageVector = if (connected) Icons.Filled.DirectionsCar else Icons.Outlined.DirectionsCar,
             contentDescription = null,
             tint = tint,
-            modifier = Modifier.size(28.dp).align(Alignment.BottomStart),
+            modifier = Modifier.size(28.dp).align(Alignment.Center),
         )
         Box(
             modifier = Modifier
@@ -499,11 +657,15 @@ private fun PlaceListArea(state: PoiState, actions: Actions, modifier: Modifier)
             SearchingState(Modifier.weight(1f).fillMaxWidth())
         } else if (queue.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text(
-                    state.message ?: "Nothing to suggest right now.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        state.message ?: "Nothing to suggest right now.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    RefreshHint()
+                }
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -533,10 +695,10 @@ private fun PlaceListArea(state: PoiState, actions: Actions, modifier: Modifier)
 
 /** Tablet left pane: the top pick and the rest of the queue. */
 @Composable
-private fun QueuePane(state: PoiState, actions: Actions) {
+private fun QueuePane(state: PoiState, actions: Actions, width: Dp) {
     val queue = listOfNotNull(state.current) + state.upcoming
     Column(
-        modifier = Modifier.width(340.dp).fillMaxSize(),
+        modifier = Modifier.width(width).fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
@@ -605,23 +767,66 @@ private fun SuggestionArea(
     actions: Actions,
     modifier: Modifier,
 ) {
+    // The list on screen. When the card on screen walks out of range, the old list stays up while that
+    // card shrinks away slowly, and only then does the next place take its place.
+    var shown by remember { mutableStateOf(places) }
+    val scale = remember { Animatable(1f) }
+    val leaveScope = rememberCoroutineScope()
+    val latestPlaces by rememberUpdatedState(places)
+    var leaving by remember { mutableStateOf(false) }
+    // Every new list of places, including new distances from each GPS fix, reaches the screen at once,
+    // except while a departing card is shrinking. That animation runs on its own, so the fixes do not cut it short.
+    LaunchedEffect(places) {
+        if (leaving) return@LaunchedEffect
+        val shownTop = shown.firstOrNull()?.poi?.id
+        val departed = shownTop != null &&
+            places.firstOrNull()?.poi?.id != shownTop &&
+            places.none { it.poi.id == shownTop }
+        if (!departed) {
+            shown = places
+            return@LaunchedEffect
+        }
+        leaving = true
+        leaveScope.launch {
+            scale.animateTo(DEPART_SCALE, tween(durationMillis = DEPART_MS, easing = LinearEasing))
+            shown = latestPlaces
+            scale.snapTo(DEPART_SCALE)
+            scale.animateTo(1f, tween(durationMillis = ARRIVE_MS))
+            leaving = false
+        }
+    }
+    val departing = places.isEmpty() && shown.isNotEmpty()
     when {
-        places.isNotEmpty() -> SuggestionPager(
-            places = places,
-            previous = state.previous,
-            from = from,
-            heading = heading,
-            large = large,
-            wide = wide,
-            actions = actions,
-            modifier = modifier,
-        )
+        shown.isNotEmpty() -> Box(
+            modifier = modifier.graphicsLayer {
+                scaleX = scale.value
+                scaleY = scale.value
+                alpha = (scale.value - DEPART_SCALE) / (1f - DEPART_SCALE)
+            },
+        ) {
+            SuggestionPager(
+                places = shown,
+                previous = state.previous,
+                from = from,
+                heading = heading,
+                large = large,
+                wide = wide,
+                actions = actions,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        departing -> Box(modifier = modifier)
         state.loading -> SearchingState(modifier)
         else -> Box(modifier = modifier, contentAlignment = Alignment.Center) {
             EmptyState(message = state.message, actions = actions)
         }
     }
 }
+
+/** How small a card gets as it walks out of range, and how long that takes. Slow on purpose. */
+private const val DEPART_SCALE = 0.8f
+private const val DEPART_MS = 1800
+private const val ARRIVE_MS = 500
 
 /**
  * Shown while places are being found: a pulsing radar around a dot for "you are here", and a line
@@ -669,6 +874,8 @@ private fun SearchingState(modifier: Modifier) {
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 24.dp),
         )
+        Spacer(Modifier.height(16.dp))
+        RefreshHint()
     }
 }
 
@@ -690,14 +897,20 @@ private fun SuggestionPager(
     modifier: Modifier,
 ) {
     // The place Back brings back is the page on the left, so a swipe right goes back as a swipe left goes on.
-    val pages = listOfNotNull(previous) + places
-    val offset = pages.size - places.size
+    // A place that is also in the list is not shown twice, which can happen while a card is leaving.
+    val left = previous?.takeIf { back -> places.none { it.poi.id == back.poi.id } }
+    val pages = listOfNotNull(left) + places
+    val offset = if (left != null) 1 else 0
     val pagerState = rememberPagerState(initialPage = offset, pageCount = { pages.size })
     val topId = places.firstOrNull()?.poi?.id
     LaunchedEffect(topId) { pagerState.scrollToPage(offset) }
     // Landing on the left-hand page means the user swiped back to it, so bring that place back.
     LaunchedEffect(pagerState.settledPage) {
         if (offset == 1 && pagerState.settledPage == 0) actions.onPrevious()
+    }
+    // The card on screen is the one Read aloud and Next act on.
+    LaunchedEffect(pagerState.settledPage, pages.getOrNull(pagerState.settledPage)?.poi?.id) {
+        actions.onShown(pages.getOrNull(pagerState.settledPage))
     }
     // A card counts as seen once the user has moved on from it.
     var lastShown by remember { mutableStateOf<Poi?>(null) }
@@ -829,7 +1042,7 @@ private fun SuggestionCard(
         if (photoHeight > 0.dp) {
             poi.photo?.let { photo ->
                 PhotoBlock(photo, poi.name, photoHeight, actions, onPhotoClick = { photoOpen = true })
-            }
+            } ?: GenericPhoto(photoHeight)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
@@ -874,8 +1087,9 @@ private fun SuggestionCard(
             )
         }
         DistanceDetails(ranked, from, heading)
+        TextButton(onClick = { actions.onVisited(ranked) }) { Text("Mark as visited") }
         if (mapHeight > 0.dp) {
-            from?.let { MiniMap(from = it, to = poi.location, height = mapHeight, onClick = { actions.onOpenMap(poi) }) }
+            from?.let { MiniMap(from = it, to = poi.location, height = mapHeight, heading = LocalPhoneHeading.current, onClick = { actions.onOpenMap(poi) }) }
         }
     }
     }
@@ -911,10 +1125,11 @@ private fun WideSuggestionCard(
             .padding(20.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        poi.photo?.let { photo ->
-            Column(modifier = Modifier.weight(1f)) {
-                PhotoBlock(photo, poi.name, (availableHeight - 56.dp).coerceAtLeast(120.dp), actions, onPhotoClick)
-            }
+        Column(modifier = Modifier.weight(1f)) {
+            val photoSize = (availableHeight - 56.dp).coerceAtLeast(120.dp)
+            poi.photo?.let { photo ->
+                PhotoBlock(photo, poi.name, photoSize, actions, onPhotoClick)
+            } ?: GenericPhoto(photoSize)
         }
         Column(
             modifier = Modifier.weight(1.3f).verticalScroll(rememberScrollState()),
@@ -947,7 +1162,8 @@ private fun WideSuggestionCard(
                 modifier = Modifier.semantics { role = Role.Button }.clickable(onClick = onDetailClick),
             )
             DistanceDetails(ranked, from, heading)
-            from?.let { MiniMap(from = it, to = poi.location, height = 120.dp, onClick = { actions.onOpenMap(poi) }) }
+            TextButton(onClick = { actions.onVisited(ranked) }) { Text("Mark as visited") }
+            from?.let { MiniMap(from = it, to = poi.location, height = 120.dp, heading = LocalPhoneHeading.current, onClick = { actions.onOpenMap(poi) }) }
         }
     }
 }
@@ -1096,17 +1312,17 @@ private fun ActionBar(actions: Actions, canGoBack: Boolean) {
             enabled = canGoBack,
             modifier = Modifier.weight(1f).heightIn(min = 48.dp),
             shape = RoundedCornerShape(50),
-        ) { Text("Back") }
+        ) { Text("Back", maxLines = 1, softWrap = false) }
         Button(
             onClick = actions.onSpeak,
             modifier = Modifier.weight(1.6f).heightIn(min = 48.dp),
             shape = RoundedCornerShape(50),
-        ) { Text("Read aloud") }
+        ) { Text("Read aloud", maxLines = 1, softWrap = false) }
         OutlinedButton(
             onClick = actions.onNext,
             modifier = Modifier.weight(1f).heightIn(min = 48.dp),
             shape = RoundedCornerShape(50),
-        ) { Text("Next") }
+        ) { Text("Next", maxLines = 1, softWrap = false) }
     }
 }
 
@@ -1117,12 +1333,16 @@ private fun ActionBar(actions: Actions, canGoBack: Boolean) {
 @Composable
 private fun DistanceDetails(ranked: RankedPoi, from: LatLon?, heading: Float?) {
     val bearing = from?.let { bearingDegrees(it, ranked.poi.location) }
+    val sun = LocalSunPosition.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         if (bearing != null && heading != null) {
-            CompassPointer(relativeDegrees = (bearing - heading).toFloat())
+            CompassPointer(
+                relativeDegrees = (bearing - heading).toFloat(),
+                sunRelativeDegrees = sun?.takeIf { it.isAboveHorizon }?.let { (it.azimuthDegrees - heading).toFloat() },
+            )
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
@@ -1135,25 +1355,68 @@ private fun DistanceDetails(ranked: RankedPoi, from: LatLon?, heading: Float?) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            sun?.let { SunReadout(it) }
         }
     }
 }
 
 /**
- * Arrow that points at the place relative to the top of the phone: straight up means the place is
- * dead ahead, pointing right means it is to your right, and so on. It turns as you turn.
+ * The sun's position in degrees from north, clockwise, with its compass point and how high it is.
+ * Below the horizon it says so instead.
  */
 @Composable
-private fun CompassPointer(relativeDegrees: Float) {
+private fun SunReadout(sun: SunPosition) {
+    val text = if (sun.isAboveHorizon) {
+        "Sun ${sun.azimuthDegrees.roundToInt() % 360}° ${compassPoint(sun.azimuthDegrees)} · ${sun.elevationDegrees.roundToInt()}° up"
+    } else {
+        "Sun ${sun.azimuthDegrees.roundToInt() % 360}° ${compassPoint(sun.azimuthDegrees)} · below the horizon"
+    }
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/**
+ * Arrow that points at the place relative to the top of the phone: straight up means the place is
+ * dead ahead, pointing right means it is to your right, and so on. It turns as you turn. When the
+ * sun is up, a yellow dot on the ring shows where it is.
+ */
+@Composable
+private fun CompassPointer(relativeDegrees: Float, sunRelativeDegrees: Float? = null) {
     val ring = MaterialTheme.colorScheme.outlineVariant
     val accent = MaterialTheme.colorScheme.primary
+    val sunColour = Color(0xFFF2B300)
     val turn = ((relativeDegrees % 360) + 360) % 360
     Canvas(
         modifier = Modifier
             .size(52.dp)
-            .semantics { contentDescription = "Direction pointer, place is ${turn.roundToInt()} degrees clockwise from your heading" },
+            .semantics {
+                contentDescription = "Direction pointer, place is ${turn.roundToInt()} degrees clockwise from your heading" +
+                    (sunRelativeDegrees?.let { ". Sun is ${(((it % 360) + 360) % 360).roundToInt()} degrees clockwise from your heading" }.orEmpty())
+            },
     ) {
         drawCircle(color = ring, radius = size.minDimension / 2 - 2f, style = Stroke(width = 3f))
+        sunRelativeDegrees?.let { sunAngle ->
+            // The sun sits on the ring, at its angle measured clockwise from the top: a disc with rays.
+            val radians = Math.toRadians(sunAngle.toDouble() - 90)
+            val ringRadius = size.minDimension / 2 - 2f
+            val sunCentre = Offset(
+                x = center.x + (ringRadius * cos(radians)).toFloat(),
+                y = center.y + (ringRadius * sin(radians)).toFloat(),
+            )
+            val disc = size.minDimension * 0.09f
+            for (ray in 0 until 8) {
+                val angle = Math.toRadians(ray * 45.0)
+                val inner = disc * 1.4f
+                val outer = disc * 2.1f
+                drawLine(
+                    color = sunColour,
+                    start = Offset(sunCentre.x + inner * cos(angle).toFloat(), sunCentre.y + inner * sin(angle).toFloat()),
+                    end = Offset(sunCentre.x + outer * cos(angle).toFloat(), sunCentre.y + outer * sin(angle).toFloat()),
+                    strokeWidth = 2f,
+                    cap = StrokeCap.Round,
+                )
+            }
+            drawCircle(color = sunColour, radius = disc, center = sunCentre)
+        }
         val arrow = Path().apply {
             moveTo(size.width / 2, size.height * 0.14f)
             lineTo(size.width * 0.78f, size.height * 0.80f)
@@ -1164,6 +1427,29 @@ private fun CompassPointer(relativeDegrees: Float) {
         rotate(degrees = turn, pivot = center) {
             drawPath(arrow, color = accent)
         }
+    }
+}
+
+/**
+ * Stands in for the photo when a place has none, so the card keeps its shape. It shows the app's own
+ * artwork rather than leaving an empty gap.
+ */
+@Composable
+private fun GenericPhoto(height: Dp) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height)
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(Res.drawable.neargems_mark),
+            contentDescription = "No photo for this place",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxSize(0.6f),
+        )
     }
 }
 
@@ -1222,6 +1508,7 @@ private fun EmptyState(message: String?, actions: Actions) {
             fontSize = 24.sp,
             textAlign = TextAlign.Center,
         )
+        RefreshHint()
         OutlinedButton(
             onClick = actions.onRefresh,
             modifier = Modifier.heightIn(min = 48.dp),
@@ -1238,27 +1525,35 @@ private fun SettingsPanel(
     settings: AppSettings,
     visits: List<Visit>,
     now: Long,
+    voices: List<SpeechVoice>,
+    posture: PhonePosture,
     onSettings: ((AppSettings) -> AppSettings) -> Unit,
+    onVoice: (String?) -> Unit,
     onWatchChanged: (Boolean) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionTitle("What to suggest")
-        PoiCategory.entries.forEach { category ->
-            Row(
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Checkbox(
-                    checked = category in settings.categories,
-                    onCheckedChange = { on ->
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            PoiCategory.entries.forEach { category ->
+                BulletChip(
+                    label = category.label,
+                    selected = category in settings.categories,
+                    onClick = {
                         onSettings { s ->
-                            s.copy(categories = if (on) s.categories + category else s.categories - category)
+                            s.copy(categories = if (category in s.categories) s.categories - category else s.categories + category)
                         }
                     },
                 )
-                Text(category.label, style = MaterialTheme.typography.bodyLarge)
             }
         }
+        // Keywords narrow the places to ones whose name or description contains them.
+        KeywordTags(
+            keywords = settings.keywords,
+            onKeywords = { text -> onSettings { it.copy(keywords = text) } },
+        )
 
         SectionTitle("Search radius")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1282,6 +1577,20 @@ private fun SettingsPanel(
             }
         }
 
+        SectionTitle("Voice")
+        if (voices.isEmpty()) {
+            Text(
+                "Voices appear here once the speech engine is ready.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        } else {
+            VoiceDropdown(
+                voices = voices.take(MAX_VOICE_OPTIONS),
+                chosen = settings.voice,
+                onVoice = onVoice,
+            )
+        }
+
         SectionTitle("Places")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PlaceView.entries.forEach { view ->
@@ -1294,10 +1603,20 @@ private fun SettingsPanel(
         }
 
         SectionTitle("Car")
+        Text(
+            "Phone is ${posture.label.lowercase()}. The pointer follows the direction of travel when it is mounted.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         SwitchRow(
             label = "Read a suggestion aloud when a car connects",
             checked = settings.announceOnCar,
             onChange = { on -> onSettings { it.copy(announceOnCar = on) } },
+        )
+        SwitchRow(
+            label = "Mute audio, even when a car is connected",
+            checked = settings.muteAudio,
+            onChange = { on -> onSettings { it.copy(muteAudio = on) } },
         )
         SwitchRow(
             label = "Keep watching for a car in the background (Android)",
@@ -1321,6 +1640,215 @@ private fun SettingsPanel(
         )
         settings.testLocation?.let { location ->
             TestLocationEditor(location) { chosen -> onSettings { it.copy(testLocation = chosen) } }
+        }
+    }
+}
+
+/** A warning across the top of the home screen, for a search that could not finish. */
+@Composable
+private fun WarningBanner(text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Warning,
+            contentDescription = "Warning",
+            tint = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.size(22.dp),
+        )
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+    }
+}
+
+/** The keywords the search is using, shown on the home screen. Each one can be dismissed with its X. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ActiveKeywordTags(keywords: String, onRemove: (String) -> Unit) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        parseKeywords(keywords).forEach { word ->
+            InputChip(
+                selected = true,
+                onClick = { onRemove(word) },
+                label = { Text(word) },
+                trailingIcon = {
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = "Remove $word",
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
+            )
+        }
+    }
+}
+
+
+/** Tells the user that pulling down searches again by hand, and that places also update on their own as they move. */
+@Composable
+private fun RefreshHint() {
+    Text(
+        "Pull down to refresh. Places also update as you move.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(horizontal = 24.dp),
+    )
+}
+
+/** A selectable button with a bullet dot: filled and outlined when chosen, plain when not. */
+@Composable
+private fun BulletChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(50)
+    Row(
+        modifier = Modifier
+            .clip(shape)
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
+            .border(
+                1.dp,
+                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                shape,
+            )
+            .clickable(role = Role.Checkbox, onClick = onClick)
+            .heightIn(min = 40.dp)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+/** How many matching ideas the keyword preview shows while typing. */
+private const val PREVIEW_IDEAS = 8
+
+/** How many voices the picker offers. The best ones come first, so a short list is enough. */
+private const val MAX_VOICE_OPTIONS = 12
+
+/** A dropdown of the device's voices, with the device default first. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun VoiceDropdown(voices: List<SpeechVoice>, chosen: String?, onVoice: (String?) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val options = listOf<Pair<String?, String>>(null to "Device default") + voices.map { it.id to it.label }
+    val current = options.firstOrNull { it.first == chosen }?.second ?: "Device default"
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = current,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Voice") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.fillMaxWidth().menuAnchor(),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { (id, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        expanded = false
+                        onVoice(id)
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Keywords as removable tags. Type a word and pick a suggestion, or press Done or comma to add
+ * your own. Suggestions come from [SUGGESTED_KEYWORDS] and are narrowed as you type.
+ */
+@Composable
+private fun KeywordTags(keywords: String, onKeywords: (String) -> Unit) {
+    val chosen = parseKeywords(keywords)
+    var draft by remember { mutableStateOf("") }
+
+    fun add(words: List<String>) {
+        val next = (chosen + words.map { it.trim().lowercase() }.filter { it.isNotEmpty() }).distinct()
+        onKeywords(next.joinToString(", "))
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (chosen.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                chosen.forEach { word ->
+                    InputChip(
+                        selected = true,
+                        onClick = { onKeywords((chosen - word).joinToString(", ")) },
+                        label = { Text(word) },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Close,
+                                contentDescription = "Remove $word",
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
+                    )
+                }
+            }
+        }
+        OutlinedTextField(
+            value = draft,
+            onValueChange = { typed ->
+                if (typed.contains(',')) {
+                    // A comma finishes the word before it, so several can be typed in a row.
+                    val parts = typed.split(',')
+                    add(parts.dropLast(1))
+                    draft = parts.last()
+                } else {
+                    draft = typed
+                }
+            },
+            label = { Text("Add a keyword") },
+            placeholder = { Text("temple, church, waterfall…") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = {
+                add(listOf(draft))
+                draft = ""
+            }),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        // Once a word is typed, a short preview of matching ideas appears. Tap one to add it, tap again to remove it.
+        val ideas = if (draft.isBlank()) emptyList() else SUGGESTED_KEYWORDS.filter { it.contains(draft.trim().lowercase()) }.take(PREVIEW_IDEAS)
+        if (ideas.isNotEmpty()) {
+            Text(
+                "Matching ideas",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ideas.forEach { word ->
+                    val on = word in chosen
+                    BulletChip(
+                        label = word,
+                        selected = on,
+                        onClick = {
+                            if (on) onKeywords((chosen - word).joinToString(", ")) else add(listOf(word))
+                        },
+                    )
+                }
+            }
         }
     }
 }
@@ -1382,6 +1910,48 @@ private fun TestLocationEditor(location: LatLon, onLocation: (LatLon) -> Unit) {
             },
             modifier = Modifier.heightIn(min = 48.dp),
         ) { Text("Use this location") }
+    }
+}
+
+/** Places marked as visited, newest first. A place can be shown again, or opened on the map. */
+@Composable
+private fun HistoryPanel(
+    visited: List<VisitedPlace>,
+    now: Long,
+    onShowAgain: (String) -> Unit,
+    onOpenMap: (VisitedPlace) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionTitle("Visited places")
+        if (visited.isEmpty()) {
+            Text(
+                "Places you mark as visited show up here, so you can open them again.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        visited.forEach { place ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(place.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "${place.category.label} · ${visitedLabel(place.atMillis, now)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { onShowAgain(place.id) }) { Text("Show again") }
+                    TextButton(onClick = { onOpenMap(place) }) { Text("Open map") }
+                }
+            }
+        }
     }
 }
 

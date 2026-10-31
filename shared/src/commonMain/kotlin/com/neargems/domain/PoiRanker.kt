@@ -13,10 +13,12 @@ object PoiRanker {
         from: LatLon,
         radiusMeters: Int,
         excludedIds: Set<String>,
+        keywords: List<String> = emptyList(),
     ): List<RankedPoi> =
         candidates
             .asSequence()
             .filter { it.id !in excludedIds }
+            .filter { !it.isTransportStop(keywords) }
             .map { poi -> poi to distanceMeters(from, poi.location) }
             .filter { (_, distance) -> distance <= radiusMeters }
             .map { (poi, distance) ->

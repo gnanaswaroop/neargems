@@ -78,9 +78,11 @@ class DriveContainerTest {
         awaitTop(container, Fixtures.CAFE_NAME)
 
         container.next()
+        awaitTop(container, Fixtures.RESTAURANT_NAME)
         assertEquals(Fixtures.RESTAURANT_NAME, container.state.value.current?.poi?.name)
 
         container.previous()
+        awaitTop(container, Fixtures.CAFE_NAME)
         assertEquals(Fixtures.CAFE_NAME, container.state.value.current?.poi?.name)
     }
 

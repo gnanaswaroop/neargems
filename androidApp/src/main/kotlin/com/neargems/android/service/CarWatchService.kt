@@ -19,6 +19,16 @@ class CarWatchService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /**
+     * The user swiped the app away from the recents list. Stop watching too, so the process
+     * really exits. Watching starts again the next time the app is opened with the switch on.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             stopForeground(STOP_FOREGROUND_REMOVE)

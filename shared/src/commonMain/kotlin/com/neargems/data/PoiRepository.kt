@@ -3,6 +3,7 @@ package com.neargems.data
 import com.neargems.domain.LatLon
 import com.neargems.domain.PoiCategory
 import com.neargems.domain.PoiRanker
+import com.neargems.domain.parseKeywords
 import com.neargems.domain.RankedPoi
 import com.neargems.domain.distanceMeters
 import com.neargems.domain.speechFor
@@ -26,6 +27,8 @@ data class PoiState(
     val upcoming: List<RankedPoi> = emptyList(),
     /** Shown when there is no suggestion, e.g. why nothing could be loaded. */
     val message: String? = null,
+    /** A warning about the search that does not stop the places from showing, e.g. a keyword search that failed. */
+    val warning: String? = null,
     /** Where the device was at the last fix, so the UI can show live direction and time. */
     val position: LatLon? = null,
     /** True when a place passed with Next can be brought back with [PoiRepository.previous]. */
@@ -60,7 +63,7 @@ class PoiRepository(
      * Re-reads the device location. Places are only re-queried after moving [REFETCH_METERS]
      * or changing categories or radius; otherwise the cached candidates are re-ranked.
      */
-    suspend fun refresh(announce: Boolean) {
+    suspend fun refresh(announce: Boolean, force: Boolean = false) {
         mutex.withLock {
             _state.update { it.copy(loading = true) }
             val position = location.current()
@@ -68,6 +71,8 @@ class PoiRepository(
                 _state.value = PoiState(message = "Location unavailable. Allow location access and turn on GPS.")
                 return
             }
+            // A pull-down asks for a fresh search, rather than re-ranking the places already found.
+            if (force) fetchedFor = null
             loadAt(position, announce)
         }
     }
@@ -82,7 +87,7 @@ class PoiRepository(
 
     private suspend fun loadAt(position: LatLon, announce: Boolean) {
         val current = settings.settings.value
-        val key = FetchKey(current.categories, current.radiusMeters)
+        val key = FetchKey(current.categories, current.radiusMeters, parseKeywords(current.keywords))
         val origin = fetchedFrom
         if (key != fetchedFor || origin == null || distanceMeters(origin, position) > REFETCH_METERS) {
             here = position
@@ -90,9 +95,16 @@ class PoiRepository(
             // those belong to a different search. Show them at once, then let the new results trickle in.
             val kept = if (fetchedFor?.categories == key.categories) candidates else emptyList()
             candidates = kept
+            keywordWarning = null
             publish(current.radiusMeters, announce = false, searching = true)
             try {
-                candidates = finder.find(position, current.radiusMeters, current.categories) { found ->
+                candidates = finder.find(
+                    position,
+                    current.radiusMeters,
+                    current.categories,
+                    key.keywords,
+                    onWarning = { keywordWarning = it },
+                ) { found ->
                     candidates = (found + kept).distinctBy { it.id }
                     publish(current.radiusMeters, announce = false, searching = true)
                 }
@@ -110,11 +122,11 @@ class PoiRepository(
     }
 
     /** Hides the current suggestion and shows the next one, announcing it if [announce] is set. */
-    suspend fun next(announce: Boolean) {
+    suspend fun next(announce: Boolean, shown: RankedPoi? = null) {
         mutex.withLock {
-            val shown = _state.value.current ?: return
-            settings.dismiss(shown.poi.id)
-            passed.addLast(shown)
+            val current = shown ?: _state.value.current ?: return
+            settings.dismiss(current.poi.id)
+            passed.addLast(current)
             publish(settings.settings.value.radiusMeters, announce)
         }
     }
@@ -132,6 +144,11 @@ class PoiRepository(
         _state.value.current?.let { narrator.speak(speechFor(it)) }
     }
 
+    /** Reads aloud the place the user is looking at, which may not be the top pick. */
+    fun speakPlace(ranked: RankedPoi) {
+        narrator.speak(speechFor(ranked))
+    }
+
     fun stopSpeaking() = narrator.stop()
 
     /** Forgets the last announcement so the next suggestion is read out again, e.g. on a new car connection. */
@@ -139,9 +156,18 @@ class PoiRepository(
         announcedId = null
     }
 
+    /** The warning about the latest search, or null when every source answered. */
+    private var keywordWarning: String? = null
+
     private fun publish(radiusMeters: Int, announce: Boolean, searching: Boolean = false) {
         val origin = here ?: return
-        val ranked = PoiRanker.rank(candidates, origin, radiusMeters, settings.dismissedIds())
+        val ranked = PoiRanker.rank(
+            candidates,
+            origin,
+            radiusMeters,
+            settings.dismissedIds() + settings.visitedIds(),
+            parseKeywords(settings.settings.value.keywords),
+        )
         recordArrivals(ranked)
         val top = ranked.firstOrNull()
         // The place Back would bring back. It is always shown, even after moving past the search radius,
@@ -178,6 +204,7 @@ class PoiRepository(
                 previous = previous,
             )
         }
+        _state.value = _state.value.copy(warning = keywordWarning)
         if (top != null && announce && top.poi.id != announcedId) {
             announcedId = top.poi.id
             narrator.speak(speechFor(top))
@@ -192,7 +219,7 @@ class PoiRepository(
         }
     }
 
-    private data class FetchKey(val categories: Set<PoiCategory>, val radiusMeters: Int)
+    private data class FetchKey(val categories: Set<PoiCategory>, val radiusMeters: Int, val keywords: List<String>)
 
     private companion object {
         const val REFETCH_METERS = 400.0
