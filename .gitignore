@@ -6,3 +6,6 @@ local.properties
 .idea/
 *.iml
 .claude/
+
+# Scratch files for local checks, never committed
+tmp/
