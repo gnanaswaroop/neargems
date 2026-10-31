@@ -290,6 +290,11 @@ class DriveContainer(platform: PlatformServices) {
         scope.launch { refreshAsync() }
     }
 
+    /** Searches again from scratch, for a pull-down, so the searching state stays up while the new results load. */
+    fun pullToRefresh() {
+        scope.launch { repository.refresh(announce = shouldAnnounce(), force = true) }
+    }
+
     fun next() {
         val place = shownPlace.value ?: state.value.current ?: return
         // Passing a place on means it has been seen.

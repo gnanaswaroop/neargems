@@ -63,7 +63,7 @@ class PoiRepository(
      * Re-reads the device location. Places are only re-queried after moving [REFETCH_METERS]
      * or changing categories or radius; otherwise the cached candidates are re-ranked.
      */
-    suspend fun refresh(announce: Boolean) {
+    suspend fun refresh(announce: Boolean, force: Boolean = false) {
         mutex.withLock {
             _state.update { it.copy(loading = true) }
             val position = location.current()
@@ -71,6 +71,8 @@ class PoiRepository(
                 _state.value = PoiState(message = "Location unavailable. Allow location access and turn on GPS.")
                 return
             }
+            // A pull-down asks for a fresh search, rather than re-ranking the places already found.
+            if (force) fetchedFor = null
             loadAt(position, announce)
         }
     }

@@ -142,6 +142,7 @@ import com.neargems.domain.driveMinutes
 import com.neargems.domain.formatDistance
 import com.neargems.domain.summarise
 import com.neargems.domain.walkMinutes
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -279,7 +280,7 @@ private fun NearGemsContent(
             val landscapePhone = twoPane && maxHeight < WIDE_MAX_HEIGHT
             PullToRefreshBox(
                 isRefreshing = state.searching || state.loading,
-                onRefresh = { container.refresh() },
+                onRefresh = { container.pullToRefresh() },
                 modifier = Modifier.fillMaxSize(),
             ) {
                 Column(
@@ -869,6 +870,8 @@ private fun SearchingState(modifier: Modifier) {
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 24.dp),
         )
+        Spacer(Modifier.height(16.dp))
+        RefreshHint()
     }
 }
 
@@ -1501,6 +1504,7 @@ private fun EmptyState(message: String?, actions: Actions) {
             fontSize = 24.sp,
             textAlign = TextAlign.Center,
         )
+        RefreshHint()
         OutlinedButton(
             onClick = actions.onRefresh,
             modifier = Modifier.heightIn(min = 48.dp),
@@ -1682,6 +1686,19 @@ private fun ActiveKeywordTags(keywords: String, onRemove: (String) -> Unit) {
             )
         }
     }
+}
+
+
+/** Tells the user that pulling down searches again by hand, and that places also update on their own as they move. */
+@Composable
+private fun RefreshHint() {
+    Text(
+        "Pull down to search again. Places also update as you move.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(horizontal = 24.dp),
+    )
 }
 
 /** A selectable button with a bullet dot: filled and outlined when chosen, plain when not. */
