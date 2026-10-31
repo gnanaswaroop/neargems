@@ -14,6 +14,8 @@ import com.neargems.domain.LatLon
 import com.neargems.domain.bearingDegrees
 import com.neargems.domain.distanceMeters
 import com.neargems.domain.Poi
+import com.neargems.domain.SunPosition
+import com.neargems.domain.sunPosition
 import com.neargems.domain.RankedPoi
 import com.neargems.platform.KeyValueStore
 import com.neargems.platform.HeadingSource
@@ -121,6 +123,11 @@ class DriveContainer(platform: PlatformServices) {
         .distinctUntilChanged()
         .stateIn(scope, SharingStarted.Eagerly, false)
 
+    private val _sun = MutableStateFlow<SunPosition?>(null)
+
+    /** Where the sun is, seen from the last known position. Updated every [SUN_TICK_MS]. Null until a fix arrives. */
+    val sun: StateFlow<SunPosition?> = _sun.asStateFlow()
+
     /** Set by the platform while its UI is on screen. */
     private val visible = MutableStateFlow(false)
 
@@ -176,6 +183,15 @@ class DriveContainer(platform: PlatformServices) {
                         }
                     }
                 }
+        }
+        // The sun is worked out from the latest fix, and again every tick while the fix stays put.
+        scope.launch {
+            state.map { it.position }.filterNotNull().distinctUntilChanged().collectLatest { position ->
+                while (true) {
+                    _sun.value = sunPosition(position, clock())
+                    delay(SUN_TICK_MS)
+                }
+            }
         }
         scope.launch {
             carConnected.collectLatest { connected ->
@@ -270,6 +286,8 @@ class DriveContainer(platform: PlatformServices) {
 
     companion object {
         const val REFRESH_INTERVAL_MS = 60_000L
+        /** The sun moves about a quarter of a degree in a minute, so half a minute is plenty. */
+        const val SUN_TICK_MS = 30_000L
         const val VOICE_SAMPLE = "This is how this voice sounds, reading out a nearby place."
         /** Fixes closer together than this are GPS jitter, not movement, so they do not change the travel direction. */
         const val MOVING_METERS = 15.0

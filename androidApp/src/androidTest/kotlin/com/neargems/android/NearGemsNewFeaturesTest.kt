@@ -123,6 +123,17 @@ class NearGemsNewFeaturesTest {
     }
 
     @Test
+    fun theSunReadoutShowsOnTheCardOnceThereIsAPosition() {
+        val container = container()
+        showApp(container)
+
+        rule.waitUntil(TIMEOUT_MS) {
+            rule.onAllNodesWithText("Sun ", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        rule.onAllNodesWithText("Sun ", substring = true)[0].assertIsDisplayed()
+    }
+
+    @Test
     fun markAsVisitedHidesThePlaceFromTheCard() {
         val container = container()
         showApp(container)

@@ -106,12 +106,15 @@ import com.neargems.domain.Poi
 import com.neargems.domain.PoiCategory
 import com.neargems.domain.RankedPoi
 import com.neargems.domain.bearingDegrees
+import com.neargems.domain.SunPosition
 import com.neargems.domain.compassPoint
 import com.neargems.domain.driveMinutes
 import com.neargems.domain.formatDistance
 import com.neargems.domain.summarise
 import com.neargems.domain.walkMinutes
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 private val RADIUS_OPTIONS = listOf(500 to "500 m", 1000 to "1 km", 2000 to "2 km", 5000 to "5 km")
 
@@ -156,13 +159,17 @@ fun NearGemsApp(
     onOpenSettings: () -> Unit = {},
 ) {
     val seenIds by container.seenIds.collectAsState()
-    CompositionLocalProvider(LocalSeenIds provides seenIds) {
+    val sun by container.sun.collectAsState()
+    CompositionLocalProvider(LocalSeenIds provides seenIds, LocalSunPosition provides sun) {
         NearGemsContent(container, onStart, onWatchChanged, locationNeeded, locationDenied, onAllowLocation, onOpenSettings)
     }
 }
 
 /** The ids of the places the user has seen, for the badges, without passing them through every screen. */
 private val LocalSeenIds = compositionLocalOf<Set<String>> { emptySet() }
+
+/** Where the sun is from the user's position, or null before the first fix. Read by the compass on each card. */
+private val LocalSunPosition = compositionLocalOf<SunPosition?> { null }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -1136,12 +1143,16 @@ private fun ActionBar(actions: Actions, canGoBack: Boolean) {
 @Composable
 private fun DistanceDetails(ranked: RankedPoi, from: LatLon?, heading: Float?) {
     val bearing = from?.let { bearingDegrees(it, ranked.poi.location) }
+    val sun = LocalSunPosition.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         if (bearing != null && heading != null) {
-            CompassPointer(relativeDegrees = (bearing - heading).toFloat())
+            CompassPointer(
+                relativeDegrees = (bearing - heading).toFloat(),
+                sunRelativeDegrees = sun?.takeIf { it.isAboveHorizon }?.let { (it.azimuthDegrees - heading).toFloat() },
+            )
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
@@ -1154,25 +1165,55 @@ private fun DistanceDetails(ranked: RankedPoi, from: LatLon?, heading: Float?) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            sun?.let { SunReadout(it) }
         }
     }
 }
 
 /**
- * Arrow that points at the place relative to the top of the phone: straight up means the place is
- * dead ahead, pointing right means it is to your right, and so on. It turns as you turn.
+ * The sun's position in degrees from north, clockwise, with its compass point and how high it is.
+ * Below the horizon it says so instead.
  */
 @Composable
-private fun CompassPointer(relativeDegrees: Float) {
+private fun SunReadout(sun: SunPosition) {
+    val text = if (sun.isAboveHorizon) {
+        "Sun ${sun.azimuthDegrees.roundToInt() % 360}° ${compassPoint(sun.azimuthDegrees)} · ${sun.elevationDegrees.roundToInt()}° up"
+    } else {
+        "Sun ${sun.azimuthDegrees.roundToInt() % 360}° ${compassPoint(sun.azimuthDegrees)} · below the horizon"
+    }
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/**
+ * Arrow that points at the place relative to the top of the phone: straight up means the place is
+ * dead ahead, pointing right means it is to your right, and so on. It turns as you turn. When the
+ * sun is up, a yellow dot on the ring shows where it is.
+ */
+@Composable
+private fun CompassPointer(relativeDegrees: Float, sunRelativeDegrees: Float? = null) {
     val ring = MaterialTheme.colorScheme.outlineVariant
     val accent = MaterialTheme.colorScheme.primary
+    val sunColour = Color(0xFFF2B300)
     val turn = ((relativeDegrees % 360) + 360) % 360
     Canvas(
         modifier = Modifier
             .size(52.dp)
-            .semantics { contentDescription = "Direction pointer, place is ${turn.roundToInt()} degrees clockwise from your heading" },
+            .semantics {
+                contentDescription = "Direction pointer, place is ${turn.roundToInt()} degrees clockwise from your heading" +
+                    (sunRelativeDegrees?.let { ". Sun is ${(((it % 360) + 360) % 360).roundToInt()} degrees clockwise from your heading" }.orEmpty())
+            },
     ) {
         drawCircle(color = ring, radius = size.minDimension / 2 - 2f, style = Stroke(width = 3f))
+        sunRelativeDegrees?.let { sunAngle ->
+            // The dot sits on the ring, at the sun's angle measured clockwise from the top.
+            val radians = Math.toRadians(sunAngle.toDouble() - 90)
+            val ringRadius = size.minDimension / 2 - 2f
+            val dot = Offset(
+                x = center.x + (ringRadius * cos(radians)).toFloat(),
+                y = center.y + (ringRadius * sin(radians)).toFloat(),
+            )
+            drawCircle(color = sunColour, radius = size.minDimension * 0.1f, center = dot)
+        }
         val arrow = Path().apply {
             moveTo(size.width / 2, size.height * 0.14f)
             lineTo(size.width * 0.78f, size.height * 0.80f)
