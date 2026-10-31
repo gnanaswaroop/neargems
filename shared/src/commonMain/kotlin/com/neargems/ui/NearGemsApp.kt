@@ -305,6 +305,17 @@ private fun NearGemsContent(
                     }
                 }
 
+                if (!showSettings && !showHistory && settings.keywords.isNotBlank()) {
+                    ActiveKeywordTags(
+                        keywords = settings.keywords,
+                        onRemove = { word ->
+                            container.updateSettings { s ->
+                                s.copy(keywords = (parseKeywords(s.keywords) - word).joinToString(", "))
+                            }
+                        },
+                    )
+                }
+
                 if (showHistory) {
                     Column(
                         modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
@@ -1588,6 +1599,32 @@ private fun SettingsPanel(
         )
         settings.testLocation?.let { location ->
             TestLocationEditor(location) { chosen -> onSettings { it.copy(testLocation = chosen) } }
+        }
+    }
+}
+
+/** The keywords the search is using, shown on the home screen. Each one can be dismissed with its X. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ActiveKeywordTags(keywords: String, onRemove: (String) -> Unit) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        parseKeywords(keywords).forEach { word ->
+            InputChip(
+                selected = true,
+                onClick = { onRemove(word) },
+                label = { Text(word) },
+                trailingIcon = {
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = "Remove $word",
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
+            )
         }
     }
 }

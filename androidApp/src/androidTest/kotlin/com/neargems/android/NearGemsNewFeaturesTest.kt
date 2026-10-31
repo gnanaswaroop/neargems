@@ -144,7 +144,7 @@ class NearGemsNewFeaturesTest {
         rule.waitUntil(TIMEOUT_MS) {
             rule.onAllNodesWithText("Sun ", substring = true).fetchSemanticsNodes().isNotEmpty()
         }
-        rule.onAllNodesWithText("Sun ", substring = true)[0].assertIsDisplayed()
+        rule.onAllNodesWithText("Sun ", substring = true)[0].performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -152,7 +152,7 @@ class NearGemsNewFeaturesTest {
         val container = container()
         showApp(container)
 
-        rule.onAllNodesWithText("Mark as visited")[0].performClick()
+        rule.onAllNodesWithText("Mark as visited")[0].performScrollTo().performClick()
         rule.waitUntil(TIMEOUT_MS) { container.visited.value.isNotEmpty() }
 
         rule.onNodeWithContentDescription("Visited places").performClick()
@@ -163,11 +163,29 @@ class NearGemsNewFeaturesTest {
     }
 
     @Test
+    fun aKeywordTagOnTheHomeScreenCanBeDismissed() {
+        val container = container()
+        showApp(container)
+
+        rule.onNodeWithContentDescription("Settings").performClick()
+        rule.onNodeWithText("Add a keyword").performScrollTo().performTextInput("luigi,")
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Done").performClick()
+
+        rule.waitUntil(TIMEOUT_MS) {
+            rule.onAllNodesWithContentDescription("Remove luigi").fetchSemanticsNodes().isNotEmpty()
+        }
+        rule.onNodeWithContentDescription("Remove luigi").performClick()
+        rule.waitUntil(TIMEOUT_MS) { container.settings.settings.value.keywords.isBlank() }
+        assertTrue(container.settings.settings.value.keywords.isBlank())
+    }
+
+    @Test
     fun markAsVisitedHidesThePlaceFromTheCard() {
         val container = container()
         showApp(container)
 
-        rule.onAllNodesWithText("Mark as visited")[0].performClick()
+        rule.onAllNodesWithText("Mark as visited")[0].performScrollTo().performClick()
 
         rule.waitUntil(TIMEOUT_MS) {
             rule.onAllNodesWithText(Fixtures.RESTAURANT_NAME).fetchSemanticsNodes().isNotEmpty()
@@ -197,7 +215,7 @@ class NearGemsNewFeaturesTest {
         headings.tryEmit(90f)
 
         rule.waitUntil(TIMEOUT_MS) { container.headingDegrees.value == 90f }
-        rule.onAllNodesWithContentDescription("Direction pointer", substring = true)[0].assertIsDisplayed()
+        rule.onAllNodesWithContentDescription("Direction pointer", substring = true)[0].performScrollTo().assertIsDisplayed()
         assertEquals(90f, container.headingDegrees.value)
     }
 
