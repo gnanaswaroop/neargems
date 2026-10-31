@@ -1689,6 +1689,9 @@ private fun BulletChip(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
+/** How many matching ideas the keyword preview shows while typing. */
+private const val PREVIEW_IDEAS = 8
+
 /** How many voices the picker offers. The best ones come first, so a short list is enough. */
 private const val MAX_VOICE_OPTIONS = 6
 
@@ -1777,11 +1780,11 @@ private fun KeywordTags(keywords: String, onKeywords: (String) -> Unit) {
             }),
             modifier = Modifier.fillMaxWidth(),
         )
-        // The ideas work like the category checkboxes: tap one to add it to the search, tap again to take it out.
-        val ideas = SUGGESTED_KEYWORDS.filter { draft.isBlank() || it.contains(draft.trim().lowercase()) }
+        // Once a word is typed, a short preview of matching ideas appears. Tap one to add it, tap again to remove it.
+        val ideas = if (draft.isBlank()) emptyList() else SUGGESTED_KEYWORDS.filter { it.contains(draft.trim().lowercase()) }.take(PREVIEW_IDEAS)
         if (ideas.isNotEmpty()) {
             Text(
-                if (draft.isBlank()) "Pick from these" else "Matching ideas",
+                "Matching ideas",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
