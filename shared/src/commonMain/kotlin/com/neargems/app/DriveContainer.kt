@@ -196,19 +196,19 @@ class DriveContainer(platform: PlatformServices) {
         }
         // The place on screen stays in the notification shade. A new place is announced with a soft
         // sound, but only while audio is on, and not for the first place found when the app starts.
+        // The live notification always says what the app is doing: the place on screen, or the search status.
+        scope.launch {
+            state.map { liveStatus(it) }.distinctUntilChanged().collect { (title, detail) ->
+                notifier.liveUpdate(title, detail)
+            }
+        }
+        // A new place makes a soft sound, but only while audio is on, and not for the first place found.
         scope.launch {
             state.map { it.current }.distinctUntilChanged { a, b -> a?.poi?.id == b?.poi?.id }.collect { ranked ->
-                if (ranked == null) {
-                    notifier.clear()
-                    return@collect
-                }
-                val from = state.value.position
-                val bearing = from?.let { bearingDegrees(it, ranked.poi.location) }
-                val detail = formatDistance(ranked.distanceMeters) + bearing?.let { " · ${compassPoint(it)}" }.orEmpty()
-                notifier.liveUpdate(ranked.poi.name, detail)
+                if (ranked == null) return@collect
                 val firstFound = announcedIds.isEmpty()
                 if (announcedIds.add(ranked.poi.id) && !firstFound && !settings.settings.value.muteAudio) {
-                    notifier.newPlace("New place: ${ranked.poi.name}", detail)
+                    notifier.newPlace("New place: ${ranked.poi.name}", placeDetail(ranked, state.value.position))
                 }
             }
         }
@@ -359,7 +359,10 @@ class DriveContainer(platform: PlatformServices) {
     /** Picks a voice and reads a short sample, so the choice can be heard straight away. */
     fun chooseVoice(id: String?) {
         updateSettings { it.copy(voice = id) }
-        narrator.speak(VOICE_SAMPLE)
+        narrator.useVoice(id)
+        // Read the place on screen so the voice is heard on something real; a sample place when there is none.
+        val top = state.value.current
+        if (top != null) repository.speakPlace(top) else narrator.speak(VOICE_SAMPLE)
     }
 
     fun restoreDismissed() {
@@ -374,6 +377,20 @@ class DriveContainer(platform: PlatformServices) {
         repository.refresh(announce = shouldAnnounce())
     }
 
+    /** The title and line for the live notification: the place on screen, or the search status when there is none. */
+    private fun liveStatus(s: PoiState): Pair<String, String> {
+        val ranked = s.current ?: return "NearGems" to when {
+            s.loading || s.searching -> "Finding places near you"
+            else -> s.message ?: "No places nearby"
+        }
+        return ranked.poi.name to placeDetail(ranked, s.position)
+    }
+
+    private fun placeDetail(ranked: RankedPoi, from: LatLon?): String {
+        val bearing = from?.let { bearingDegrees(it, ranked.poi.location) }
+        return formatDistance(ranked.distanceMeters) + bearing?.let { " · ${compassPoint(it)}" }.orEmpty()
+    }
+
     private fun shouldAnnounce(): Boolean =
         carConnected.value && settings.settings.value.announceOnCar
 
@@ -381,7 +398,7 @@ class DriveContainer(platform: PlatformServices) {
         const val REFRESH_INTERVAL_MS = 60_000L
         /** The sun moves about a quarter of a degree in a minute, so half a minute is plenty. */
         const val SUN_TICK_MS = 30_000L
-        const val VOICE_SAMPLE = "This is how this voice sounds, reading out a nearby place."
+        const val VOICE_SAMPLE = "Harbour Lane Café. A café about 150 metres away, with tables outside. Open until ten tonight."
         /** Fixes closer together than this are GPS jitter, not movement, so they do not change the travel direction. */
         const val MOVING_METERS = 15.0
         /** Gravity readings this far apart, summed over both axes, count as the phone being moved. */

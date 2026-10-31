@@ -98,11 +98,13 @@ class NearGemsNewFeaturesTest {
         showApp(container)
 
         rule.onNodeWithContentDescription("Settings").performClick()
-        rule.onNodeWithText(VOICE_LABEL).performScrollTo().performClick()
+        rule.onNodeWithText("Device default").performScrollTo().performClick()
+        rule.onNodeWithText(VOICE_LABEL).performClick()
         rule.waitForIdle()
 
         assertEquals(VOICE_ID, container.settings.settings.value.voice)
-        assertTrue(spoken.contains(DriveContainer.VOICE_SAMPLE))
+        // The place on screen is read out when there is one, so the voice is heard on something real.
+        assertTrue(spoken.any { it.contains(Fixtures.CAFE_NAME) || it == DriveContainer.VOICE_SAMPLE })
     }
 
     @Test
@@ -123,7 +125,7 @@ class NearGemsNewFeaturesTest {
         showApp(container)
 
         rule.onNodeWithContentDescription("Settings").performClick()
-        rule.onNodeWithText("Keywords, comma-separated").performScrollTo().performTextInput("luigi")
+        rule.onNodeWithText("Add a keyword").performScrollTo().performTextInput("luigi,")
         rule.waitForIdle()
         rule.onNodeWithContentDescription("Done").performClick()
 

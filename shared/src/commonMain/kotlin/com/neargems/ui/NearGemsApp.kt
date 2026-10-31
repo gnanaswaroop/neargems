@@ -37,6 +37,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -48,11 +49,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
@@ -80,6 +88,9 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.AssistChip
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -97,6 +108,7 @@ import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.automirrored.outlined.VolumeOff
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.DirectionsCar
@@ -119,6 +131,9 @@ import com.neargems.domain.PoiCategory
 import com.neargems.domain.RankedPoi
 import com.neargems.domain.bearingDegrees
 import com.neargems.domain.PhonePosture
+import com.neargems.domain.suggestKeywords
+import com.neargems.domain.parseKeywords
+import com.neargems.domain.SUGGESTED_KEYWORDS
 import com.neargems.domain.SunPosition
 import com.neargems.domain.compassPoint
 import com.neargems.domain.driveMinutes
@@ -174,7 +189,8 @@ fun NearGemsApp(
 ) {
     val seenIds by container.seenIds.collectAsState()
     val sun by container.sun.collectAsState()
-    CompositionLocalProvider(LocalSeenIds provides seenIds, LocalSunPosition provides sun) {
+    val phoneHeading by container.headingDegrees.collectAsState()
+    CompositionLocalProvider(LocalSeenIds provides seenIds, LocalSunPosition provides sun, LocalPhoneHeading provides phoneHeading) {
         NearGemsContent(container, onStart, onWatchChanged, locationNeeded, locationDenied, onAllowLocation, onOpenSettings, onQuit)
     }
 }
@@ -184,6 +200,9 @@ private val LocalSeenIds = compositionLocalOf<Set<String>> { emptySet() }
 
 /** Where the sun is from the user's position, or null before the first fix. Read by the compass on each card. */
 private val LocalSunPosition = compositionLocalOf<SunPosition?> { null }
+
+/** Which way the phone faces, from north, or null when unknown. Turns the mini map so that way is up. */
+private val LocalPhoneHeading = compositionLocalOf<Float?> { null }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -706,21 +725,28 @@ private fun SuggestionArea(
     // card shrinks away slowly, and only then does the next place take its place.
     var shown by remember { mutableStateOf(places) }
     val scale = remember { Animatable(1f) }
-    val shownTop = shown.firstOrNull()?.poi?.id
-    val newTop = places.firstOrNull()?.poi?.id
-    LaunchedEffect(newTop) {
-        if (newTop == shownTop) {
+    val leaveScope = rememberCoroutineScope()
+    val latestPlaces by rememberUpdatedState(places)
+    var leaving by remember { mutableStateOf(false) }
+    // Every new list of places, including new distances from each GPS fix, reaches the screen at once,
+    // except while a departing card is shrinking. That animation runs on its own, so the fixes do not cut it short.
+    LaunchedEffect(places) {
+        if (leaving) return@LaunchedEffect
+        val shownTop = shown.firstOrNull()?.poi?.id
+        val departed = shownTop != null &&
+            places.firstOrNull()?.poi?.id != shownTop &&
+            places.none { it.poi.id == shownTop }
+        if (!departed) {
             shown = places
             return@LaunchedEffect
         }
-        val departed = shownTop != null && places.none { it.poi.id == shownTop }
-        if (departed) {
+        leaving = true
+        leaveScope.launch {
             scale.animateTo(DEPART_SCALE, tween(durationMillis = DEPART_MS, easing = LinearEasing))
-        }
-        shown = places
-        if (departed) {
+            shown = latestPlaces
             scale.snapTo(DEPART_SCALE)
             scale.animateTo(1f, tween(durationMillis = ARRIVE_MS))
+            leaving = false
         }
     }
     val departing = places.isEmpty() && shown.isNotEmpty()
@@ -1015,7 +1041,7 @@ private fun SuggestionCard(
         DistanceDetails(ranked, from, heading)
         TextButton(onClick = { actions.onVisited(ranked) }) { Text("Mark as visited") }
         if (mapHeight > 0.dp) {
-            from?.let { MiniMap(from = it, to = poi.location, height = mapHeight, onClick = { actions.onOpenMap(poi) }) }
+            from?.let { MiniMap(from = it, to = poi.location, height = mapHeight, heading = LocalPhoneHeading.current, onClick = { actions.onOpenMap(poi) }) }
         }
     }
     }
@@ -1089,7 +1115,7 @@ private fun WideSuggestionCard(
             )
             DistanceDetails(ranked, from, heading)
             TextButton(onClick = { actions.onVisited(ranked) }) { Text("Mark as visited") }
-            from?.let { MiniMap(from = it, to = poi.location, height = 120.dp, onClick = { actions.onOpenMap(poi) }) }
+            from?.let { MiniMap(from = it, to = poi.location, height = 120.dp, heading = LocalPhoneHeading.current, onClick = { actions.onOpenMap(poi) }) }
         }
     }
 }
@@ -1471,18 +1497,10 @@ private fun SettingsPanel(
                 )
             }
         }
-        // Typed words narrow the places to ones whose name or description contains them.
-        var keywords by remember { mutableStateOf(settings.keywords) }
-        OutlinedTextField(
-            value = keywords,
-            onValueChange = { typed ->
-                keywords = typed
-                onSettings { it.copy(keywords = typed) }
-            },
-            label = { Text("Keywords, comma-separated") },
-            placeholder = { Text("temple, church, waterfall") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+        // Keywords narrow the places to ones whose name or description contains them.
+        KeywordTags(
+            keywords = settings.keywords,
+            onKeywords = { text -> onSettings { it.copy(keywords = text) } },
         )
 
         SectionTitle("Search radius")
@@ -1514,20 +1532,11 @@ private fun SettingsPanel(
                 style = MaterialTheme.typography.bodyMedium,
             )
         } else {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = settings.voice == null,
-                    onClick = { onVoice(null) },
-                    label = { Text("Device default") },
-                )
-                voices.forEach { voice ->
-                    FilterChip(
-                        selected = settings.voice == voice.id,
-                        onClick = { onVoice(voice.id) },
-                        label = { Text(voice.label) },
-                    )
-                }
-            }
+            VoiceDropdown(
+                voices = voices.take(MAX_VOICE_OPTIONS),
+                chosen = settings.voice,
+                onVoice = onVoice,
+            )
         }
 
         SectionTitle("Places")
@@ -1579,6 +1588,116 @@ private fun SettingsPanel(
         )
         settings.testLocation?.let { location ->
             TestLocationEditor(location) { chosen -> onSettings { it.copy(testLocation = chosen) } }
+        }
+    }
+}
+
+/** How many voices the picker offers. The best ones come first, so a short list is enough. */
+private const val MAX_VOICE_OPTIONS = 6
+
+/** A dropdown of the device's voices, with the device default first. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun VoiceDropdown(voices: List<SpeechVoice>, chosen: String?, onVoice: (String?) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val options = listOf<Pair<String?, String>>(null to "Device default") + voices.map { it.id to it.label }
+    val current = options.firstOrNull { it.first == chosen }?.second ?: "Device default"
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = current,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Voice") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.fillMaxWidth().menuAnchor(),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { (id, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        expanded = false
+                        onVoice(id)
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Keywords as removable tags. Type a word and pick a suggestion, or press Done or comma to add
+ * your own. Suggestions come from [SUGGESTED_KEYWORDS] and are narrowed as you type.
+ */
+@Composable
+private fun KeywordTags(keywords: String, onKeywords: (String) -> Unit) {
+    val chosen = parseKeywords(keywords)
+    var draft by remember { mutableStateOf("") }
+
+    fun add(words: List<String>) {
+        val next = (chosen + words.map { it.trim().lowercase() }.filter { it.isNotEmpty() }).distinct()
+        onKeywords(next.joinToString(", "))
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (chosen.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                chosen.forEach { word ->
+                    InputChip(
+                        selected = true,
+                        onClick = { onKeywords((chosen - word).joinToString(", ")) },
+                        label = { Text(word) },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Close,
+                                contentDescription = "Remove $word",
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
+                    )
+                }
+            }
+        }
+        OutlinedTextField(
+            value = draft,
+            onValueChange = { typed ->
+                if (typed.contains(',')) {
+                    // A comma finishes the word before it, so several can be typed in a row.
+                    val parts = typed.split(',')
+                    add(parts.dropLast(1))
+                    draft = parts.last()
+                } else {
+                    draft = typed
+                }
+            },
+            label = { Text("Add a keyword") },
+            placeholder = { Text("temple, church, waterfall…") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = {
+                add(listOf(draft))
+                draft = ""
+            }),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        val ideas = suggestKeywords(draft, chosen)
+        if (ideas.isNotEmpty()) {
+            Text(
+                if (draft.isBlank()) "Ideas" else "Suggestions",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ideas.forEach { word ->
+                    AssistChip(
+                        onClick = {
+                            add(listOf(word))
+                            draft = ""
+                        },
+                        label = { Text(word) },
+                    )
+                }
+            }
         }
     }
 }

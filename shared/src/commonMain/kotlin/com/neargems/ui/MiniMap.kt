@@ -3,6 +3,9 @@ package com.neargems.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
+import kotlin.math.sqrt
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.clickable
@@ -53,6 +56,9 @@ private const val MAX_ZOOM = 18
  * A small street map with your position and the place, so you can see how close you are. Tiles come
  * from OpenStreetMap at runtime; the attribution line is required by the OpenStreetMap licence.
  * [onClick] opens the place in the maps app the user already has.
+ *
+ * With a [heading], the map turns so the direction the phone faces is at the top, and an "N" marks
+ * where north is. Without one, north is at the top.
  */
 @Composable
 fun MiniMap(
@@ -60,6 +66,7 @@ fun MiniMap(
     to: LatLon,
     modifier: Modifier = Modifier,
     height: Dp = MAP_HEIGHT_DP.dp,
+    heading: Float? = null,
     onClick: (() -> Unit)? = null,
 ) {
     val distance = distanceMeters(from, to)
@@ -84,6 +91,8 @@ fun MiniMap(
     ) {
         val widthPx = maxWidth.value.toDouble()
         val heightPx = maxHeight.value.toDouble()
+        // The map layer is a square big enough to still fill the card when it turns, so the corners stay covered.
+        val side = sqrt(widthPx * widthPx + heightPx * heightPx)
         val zoom = zoomFor(distance, from.lat, widthPx)
 
         val userX = worldX(from.lon, zoom)
@@ -91,16 +100,22 @@ fun MiniMap(
         val placeX = worldX(to.lon, zoom)
         val placeY = worldY(to.lat, zoom)
         // Centre the view between the two points so both stay on screen.
-        val originX = (userX + placeX) / 2 - widthPx / 2
-        val originY = (userY + placeY) / 2 - heightPx / 2
+        val originX = (userX + placeX) / 2 - side / 2
+        val originY = (userY + placeY) / 2 - side / 2
 
         val tileCount = 1 shl zoom
         val firstX = floor(originX / TILE_PX).toInt()
-        val lastX = floor((originX + widthPx) / TILE_PX).toInt()
+        val lastX = floor((originX + side) / TILE_PX).toInt()
         val firstY = floor(originY / TILE_PX).toInt()
-        val lastY = floor((originY + heightPx) / TILE_PX).toInt()
-        // The tiles sit in their own full-size layer, clipped to the map, so nothing outside the card shows.
-        Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
+        val lastY = floor((originY + side) / TILE_PX).toInt()
+        // The map layer is centred on the midpoint and turned by the heading. The card's clip hides the rest.
+        val turn = if (heading == null) 0f else -heading
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .requiredSize(side.dpF())
+                .graphicsLayer { rotationZ = turn },
+        ) {
             for (ty in firstY..lastY) {
                 if (ty !in 0 until tileCount) continue
                 for (tx in firstX..lastX) {
@@ -119,6 +134,8 @@ fun MiniMap(
                     )
                 }
             }
+            MapDot(x = userX - originX, y = userY - originY, color = MaterialTheme.colorScheme.primary)
+            MapDot(x = placeX - originX, y = placeY - originY, color = MaterialTheme.colorScheme.onSurface)
         }
 
         // Warm the streets towards the design's ground colour; dim them in dark mode.
@@ -127,8 +144,7 @@ fun MiniMap(
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background.copy(alpha = if (dark) 0.6f else 0.3f)),
         )
-        MapDot(x = userX - originX, y = userY - originY, color = MaterialTheme.colorScheme.primary)
-        MapDot(x = placeX - originX, y = placeY - originY, color = MaterialTheme.colorScheme.onSurface)
+        NorthMarker(turn = turn, widthPx = widthPx, heightPx = heightPx)
 
         Text(
             formatDistance(distance) + " away",
@@ -151,6 +167,25 @@ fun MiniMap(
                 .padding(horizontal = 4.dp),
         )
     }
+}
+
+/** Shows where north is on the card: at the top when north is up, and round the edge as the map turns. */
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.NorthMarker(turn: Float, widthPx: Double, heightPx: Double) {
+    val radius = (minOf(widthPx, heightPx) / 2 - 16).coerceAtLeast(8.0)
+    val angle = Math.toRadians(turn.toDouble())
+    val x = widthPx / 2 + radius * kotlin.math.sin(angle)
+    val y = heightPx / 2 - radius * cos(angle)
+    Text(
+        "N",
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier
+            .offset(x = x.dpF() - 6.dp, y = y.dpF() - 8.dp)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), CircleShape)
+            .padding(horizontal = 3.dp),
+    )
 }
 
 @Composable

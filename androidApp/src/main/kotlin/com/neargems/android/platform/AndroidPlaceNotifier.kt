@@ -1,9 +1,11 @@
 package com.neargems.android.platform
 
 import android.app.Notification
+import android.app.PendingIntent
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import com.neargems.platform.PlaceNotifier
 
@@ -14,6 +16,14 @@ import com.neargems.platform.PlaceNotifier
  */
 class AndroidPlaceNotifier(private val context: Context) : PlaceNotifier {
     private val manager = context.getSystemService(NotificationManager::class.java)
+
+    /** Tapping either notification brings NearGems to the front. */
+    private val openApp: PendingIntent = PendingIntent.getActivity(
+        context,
+        0,
+        Intent(context, com.neargems.android.MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
 
     init {
         manager.createNotificationChannel(
@@ -35,6 +45,7 @@ class AndroidPlaceNotifier(private val context: Context) : PlaceNotifier {
             .setContentTitle(title)
             .setContentText(detail)
             .setOngoing(true)
+            .setContentIntent(openApp)
             .setOnlyAlertOnce(true)
             .setCategory(Notification.CATEGORY_NAVIGATION)
         if (Build.VERSION.SDK_INT >= ANDROID_16) {
@@ -50,6 +61,7 @@ class AndroidPlaceNotifier(private val context: Context) : PlaceNotifier {
             .setContentTitle(title)
             .setContentText(detail)
             .setAutoCancel(true)
+            .setContentIntent(openApp)
             .build()
         manager.notify(NEW_ID, notification)
     }
