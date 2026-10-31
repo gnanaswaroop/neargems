@@ -111,6 +111,7 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.PowerSettingsNew
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.Settings
 import com.neargems.app.DriveContainer
@@ -305,6 +306,9 @@ private fun NearGemsContent(
                         LinearProgressIndicator(modifier = Modifier.fillMaxSize())
                     }
                 }
+
+                // A warning about the search, such as a keyword search that could not be reached.
+                state.warning?.takeIf { !showSettings && !showHistory }?.let { WarningBanner(it) }
 
                 if (!showSettings && !showHistory && settings.keywords.isNotBlank()) {
                     ActiveKeywordTags(
@@ -1601,6 +1605,28 @@ private fun SettingsPanel(
         settings.testLocation?.let { location ->
             TestLocationEditor(location) { chosen -> onSettings { it.copy(testLocation = chosen) } }
         }
+    }
+}
+
+/** A warning across the top of the home screen, for a search that could not finish. */
+@Composable
+private fun WarningBanner(text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Warning,
+            contentDescription = "Warning",
+            tint = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.size(22.dp),
+        )
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
     }
 }
 

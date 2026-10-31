@@ -27,6 +27,8 @@ data class PoiState(
     val upcoming: List<RankedPoi> = emptyList(),
     /** Shown when there is no suggestion, e.g. why nothing could be loaded. */
     val message: String? = null,
+    /** A warning about the search that does not stop the places from showing, e.g. a keyword search that failed. */
+    val warning: String? = null,
     /** Where the device was at the last fix, so the UI can show live direction and time. */
     val position: LatLon? = null,
     /** True when a place passed with Next can be brought back with [PoiRepository.previous]. */
@@ -91,9 +93,16 @@ class PoiRepository(
             // those belong to a different search. Show them at once, then let the new results trickle in.
             val kept = if (fetchedFor?.categories == key.categories) candidates else emptyList()
             candidates = kept
+            keywordWarning = null
             publish(current.radiusMeters, announce = false, searching = true)
             try {
-                candidates = finder.find(position, current.radiusMeters, current.categories, key.keywords) { found ->
+                candidates = finder.find(
+                    position,
+                    current.radiusMeters,
+                    current.categories,
+                    key.keywords,
+                    onWarning = { keywordWarning = it },
+                ) { found ->
                     candidates = (found + kept).distinctBy { it.id }
                     publish(current.radiusMeters, announce = false, searching = true)
                 }
@@ -145,6 +154,9 @@ class PoiRepository(
         announcedId = null
     }
 
+    /** The warning about the latest search, or null when every source answered. */
+    private var keywordWarning: String? = null
+
     private fun publish(radiusMeters: Int, announce: Boolean, searching: Boolean = false) {
         val origin = here ?: return
         val ranked = PoiRanker.rank(
@@ -189,6 +201,7 @@ class PoiRepository(
                 previous = previous,
             )
         }
+        _state.value = _state.value.copy(warning = keywordWarning)
         if (top != null && announce && top.poi.id != announcedId) {
             announcedId = top.poi.id
             narrator.speak(speechFor(top))
