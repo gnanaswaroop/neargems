@@ -137,6 +137,11 @@ class AndroidNarrator(context: Context) : Narrator {
         val installed = tts.voices.orEmpty()
             .filter { it.locale.language == language }
             .sortedWith(compareBy<android.speech.tts.Voice> { it.isNetworkConnectionRequired }.thenByDescending { it.quality })
+            // The best voice of each accent (US, UK, India, Australia...) comes first, so a short list still has them all.
+            .let { sorted ->
+                val best = sorted.groupBy { it.locale.country }.values.map { it.first() }
+                best + sorted.filter { it !in best }
+            }
         val labels = installed.map { voice ->
             val quality = when {
                 voice.quality >= QUALITY_VERY_HIGH -> "very high quality"

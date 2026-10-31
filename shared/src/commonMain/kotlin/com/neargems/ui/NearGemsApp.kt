@@ -1696,7 +1696,7 @@ private fun BulletChip(label: String, selected: Boolean, onClick: () -> Unit) {
 private const val PREVIEW_IDEAS = 8
 
 /** How many voices the picker offers. The best ones come first, so a short list is enough. */
-private const val MAX_VOICE_OPTIONS = 6
+private const val MAX_VOICE_OPTIONS = 12
 
 /** A dropdown of the device's voices, with the device default first. */
 @OptIn(ExperimentalMaterial3Api::class)
