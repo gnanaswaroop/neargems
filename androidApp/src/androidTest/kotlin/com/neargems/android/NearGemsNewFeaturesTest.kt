@@ -146,6 +146,21 @@ class NearGemsNewFeaturesTest {
     }
 
     @Test
+    fun aVisitedPlaceCanBeShownAgainFromTheHistory() {
+        val container = container()
+        showApp(container)
+
+        rule.onAllNodesWithText("Mark as visited")[0].performClick()
+        rule.waitUntil(TIMEOUT_MS) { container.visited.value.isNotEmpty() }
+
+        rule.onNodeWithContentDescription("Visited places").performClick()
+        rule.onNodeWithText(container.visited.value.first().name).assertIsDisplayed()
+        rule.onNodeWithText("Show again").performClick()
+        rule.waitUntil(TIMEOUT_MS) { container.visited.value.isEmpty() }
+        assertTrue(container.settings.visitedIds().isEmpty())
+    }
+
+    @Test
     fun markAsVisitedHidesThePlaceFromTheCard() {
         val container = container()
         showApp(container)

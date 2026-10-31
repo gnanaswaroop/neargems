@@ -48,6 +48,7 @@ class MainActivity : ComponentActivity() {
                 locationDenied = locationDenied.value,
                 onAllowLocation = ::requestLocation,
                 onOpenSettings = ::openAppSettings,
+                onQuit = ::quit,
             )
         }
     }
@@ -96,6 +97,13 @@ class MainActivity : ComponentActivity() {
 
     private fun hasLocationPermission(): Boolean =
         LOCATION_PERMISSIONS.any { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+
+    /** Shuts NearGems down: stops car watching, removes the app from recents, and ends the process. */
+    private fun quit() {
+        CarWatchService.stop(this)
+        finishAndRemoveTask()
+        android.os.Process.killProcess(android.os.Process.myPid())
+    }
 
     private fun onWatchChanged(on: Boolean) {
         if (on) CarWatchService.start(this) else CarWatchService.stop(this)

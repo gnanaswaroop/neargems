@@ -97,6 +97,8 @@ import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.automirrored.outlined.VolumeOff
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.Settings
 import com.neargems.app.DriveContainer
@@ -106,6 +108,7 @@ import com.neargems.data.PlaceView
 import com.neargems.data.ThemeMode
 import com.neargems.data.Visit
 import com.neargems.domain.LatLon
+import com.neargems.data.VisitedPlace
 import com.neargems.platform.SpeechVoice
 import com.neargems.shared.generated.resources.Res
 import com.neargems.shared.generated.resources.neargems_mark
@@ -166,11 +169,12 @@ fun NearGemsApp(
     locationDenied: Boolean = false,
     onAllowLocation: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onQuit: () -> Unit = {},
 ) {
     val seenIds by container.seenIds.collectAsState()
     val sun by container.sun.collectAsState()
     CompositionLocalProvider(LocalSeenIds provides seenIds, LocalSunPosition provides sun) {
-        NearGemsContent(container, onStart, onWatchChanged, locationNeeded, locationDenied, onAllowLocation, onOpenSettings)
+        NearGemsContent(container, onStart, onWatchChanged, locationNeeded, locationDenied, onAllowLocation, onOpenSettings, onQuit)
     }
 }
 
@@ -190,6 +194,7 @@ private fun NearGemsContent(
     locationDenied: Boolean,
     onAllowLocation: () -> Unit,
     onOpenSettings: () -> Unit,
+    onQuit: () -> Unit,
 ) {
     val state by container.state.collectAsState()
     val settings by container.settings.settings.collectAsState()
@@ -198,6 +203,8 @@ private fun NearGemsContent(
     val heading by container.headingDegrees.collectAsState()
     val visits by container.visits.collectAsState()
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showHistory by rememberSaveable { mutableStateOf(false) }
+    val visited by container.visited.collectAsState()
     // The disclosure comes before each system location prompt.
     var disclosed by remember { mutableStateOf(false) }
     PlatformBackHandler(enabled = showSettings) { showSettings = false }
@@ -257,7 +264,16 @@ private fun NearGemsContent(
                     simulated = settings.simulateCar,
                     muted = settings.muteAudio,
                     onToggleMute = { container.updateSettings { it.copy(muteAudio = !it.muteAudio) } },
-                    onToggleSettings = { showSettings = !showSettings },
+                    showHistory = showHistory,
+                    onToggleHistory = {
+                        showHistory = !showHistory
+                        showSettings = false
+                    },
+                    onToggleSettings = {
+                        showSettings = !showSettings
+                        showHistory = false
+                    },
+                    onQuit = onQuit,
                 )
 
                 // A thin bar while a search runs, so results trickling in read as progress. The space is
@@ -268,7 +284,19 @@ private fun NearGemsContent(
                     }
                 }
 
-                if (showSettings) {
+                if (showHistory) {
+                    Column(
+                        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        HistoryPanel(
+                            visited = visited,
+                            now = container.now(),
+                            onShowAgain = container::showAgain,
+                            onOpenMap = container::openVisited,
+                        )
+                    }
+                } else if (showSettings) {
                     Column(
                         modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -471,7 +499,10 @@ private fun TopBar(
     simulated: Boolean,
     muted: Boolean,
     onToggleMute: () -> Unit,
+    showHistory: Boolean,
+    onToggleHistory: () -> Unit,
     onToggleSettings: () -> Unit,
+    onQuit: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -490,11 +521,27 @@ private fun TopBar(
                 modifier = Modifier.size(28.dp),
             )
         }
+        IconButton(onClick = onToggleHistory, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.History,
+                contentDescription = if (showHistory) "Close visited places" else "Visited places",
+                tint = if (showHistory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(28.dp),
+            )
+        }
         // A plain icon, like the car beside it: no border, so it reads as an icon rather than a button.
         IconButton(onClick = onToggleSettings, modifier = Modifier.size(40.dp)) {
             Icon(
                 imageVector = if (showSettings) Icons.Outlined.Check else Icons.Outlined.Settings,
                 contentDescription = if (showSettings) "Done" else "Settings",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(28.dp),
+            )
+        }
+        IconButton(onClick = onQuit, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = Icons.Outlined.PowerSettingsNew,
+                contentDescription = "Quit NearGems",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(28.dp),
             )
@@ -1584,6 +1631,48 @@ private fun TestLocationEditor(location: LatLon, onLocation: (LatLon) -> Unit) {
             },
             modifier = Modifier.heightIn(min = 48.dp),
         ) { Text("Use this location") }
+    }
+}
+
+/** Places marked as visited, newest first. A place can be shown again, or opened on the map. */
+@Composable
+private fun HistoryPanel(
+    visited: List<VisitedPlace>,
+    now: Long,
+    onShowAgain: (String) -> Unit,
+    onOpenMap: (VisitedPlace) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionTitle("Visited places")
+        if (visited.isEmpty()) {
+            Text(
+                "Places you mark as visited show up here, so you can open them again.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        visited.forEach { place ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(place.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "${place.category.label} · ${visitedLabel(place.atMillis, now)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { onShowAgain(place.id) }) { Text("Show again") }
+                    TextButton(onClick = { onOpenMap(place) }) { Text("Open map") }
+                }
+            }
+        }
     }
 }
 

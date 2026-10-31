@@ -8,6 +8,8 @@ import com.neargems.data.PoiRepository
 import com.neargems.data.PoiState
 import com.neargems.data.SettingsStore
 import com.neargems.data.Visit
+import com.neargems.data.VisitedHistory
+import com.neargems.data.VisitedPlace
 import com.neargems.data.VisitStore
 import com.neargems.data.WikipediaSource
 import com.neargems.domain.LatLon
@@ -80,6 +82,8 @@ class DriveContainer(platform: PlatformServices) {
     private val clock = platform.clock
 
     val settings = SettingsStore(platform.keyValues, platform.clock)
+
+    private val visitedHistory = VisitedHistory(platform.keyValues)
 
     /** Places the user has been close to, stored on this device only. */
     private val visitStore = VisitStore(platform.keyValues, platform.clock)
@@ -223,9 +227,24 @@ class DriveContainer(platform: PlatformServices) {
     /** Hides the place for good, because the user has already been there. */
     fun markVisited(ranked: RankedPoi) {
         settings.markVisited(ranked.poi.id)
+        visitedHistory.add(ranked.poi, clock())
         shownPlace.value = null
         scope.launch { refreshAsync() }
     }
+
+    /** Places marked as visited, newest first, for the History screen. */
+    val visited: StateFlow<List<VisitedPlace>> = visitedHistory.places
+
+    /** Brings a visited place back into the suggestions. */
+    fun showAgain(id: String) {
+        settings.unmarkVisited(id)
+        visitedHistory.remove(id)
+        scope.launch { refreshAsync() }
+    }
+
+    fun openVisited(place: VisitedPlace) = maps.open(
+        Poi(place.id, place.name, place.category, place.location, snippet = "", interest = 0.0),
+    )
 
     fun previous() {
         scope.launch { repository.previous(announce = shouldAnnounce()) }

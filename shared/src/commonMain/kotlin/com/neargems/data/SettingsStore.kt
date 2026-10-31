@@ -79,6 +79,11 @@ class SettingsStore(private val store: KeyValueStore, private val clock: () -> L
     fun visitedIds(): Set<String> =
         store.getString(KEY_VISITED).orEmpty().lines().filter { it.isNotBlank() }.toSet()
 
+    /** Shows a place that was marked as visited again. */
+    fun unmarkVisited(id: String) {
+        store.putString(KEY_VISITED, (visitedIds() - id).joinToString("\n"))
+    }
+
     fun clearVisited() = store.putString(KEY_VISITED, null)
 
     private fun liveDismissals(now: Long): List<Pair<String, Long>> =
