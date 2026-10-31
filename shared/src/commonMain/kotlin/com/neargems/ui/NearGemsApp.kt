@@ -118,6 +118,7 @@ import com.neargems.domain.Poi
 import com.neargems.domain.PoiCategory
 import com.neargems.domain.RankedPoi
 import com.neargems.domain.bearingDegrees
+import com.neargems.domain.PhonePosture
 import com.neargems.domain.SunPosition
 import com.neargems.domain.compassPoint
 import com.neargems.domain.driveMinutes
@@ -199,6 +200,7 @@ private fun NearGemsContent(
     val state by container.state.collectAsState()
     val settings by container.settings.settings.collectAsState()
     val voices by container.voices.collectAsState()
+    val posture by container.posture.collectAsState()
     val carConnected by container.carConnected.collectAsState()
     val heading by container.headingDegrees.collectAsState()
     val visits by container.visits.collectAsState()
@@ -306,6 +308,7 @@ private fun NearGemsContent(
                             visits = visits,
                             now = container.now(),
                             voices = voices,
+                            posture = posture,
                             onSettings = container::updateSettings,
                             onVoice = container::chooseVoice,
                             onWatchChanged = onWatchChanged,
@@ -1448,6 +1451,7 @@ private fun SettingsPanel(
     visits: List<Visit>,
     now: Long,
     voices: List<SpeechVoice>,
+    posture: PhonePosture,
     onSettings: ((AppSettings) -> AppSettings) -> Unit,
     onVoice: (String?) -> Unit,
     onWatchChanged: (Boolean) -> Unit,
@@ -1538,6 +1542,11 @@ private fun SettingsPanel(
         }
 
         SectionTitle("Car")
+        Text(
+            "Phone is ${posture.label.lowercase()}. The pointer follows the direction of travel when it is mounted.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         SwitchRow(
             label = "Read a suggestion aloud when a car connects",
             checked = settings.announceOnCar,

@@ -16,7 +16,13 @@ import com.neargems.domain.LatLon
 import com.neargems.domain.bearingDegrees
 import com.neargems.domain.distanceMeters
 import com.neargems.domain.Poi
+import com.neargems.domain.Holding
+import com.neargems.domain.bearingDegrees
+import com.neargems.domain.compassPoint
+import com.neargems.domain.formatDistance
+import com.neargems.domain.PhonePosture
 import com.neargems.domain.SunPosition
+import com.neargems.domain.classifyPosture
 import com.neargems.domain.sunPosition
 import com.neargems.domain.RankedPoi
 import com.neargems.platform.KeyValueStore
@@ -26,6 +32,10 @@ import com.neargems.platform.MapOpener
 import com.neargems.platform.MemorySeenStore
 import com.neargems.platform.Narrator
 import com.neargems.platform.SeenStore
+import com.neargems.platform.NoPlaceNotifier
+import com.neargems.platform.PlaceNotifier
+import com.neargems.platform.PostureSource
+import com.neargems.platform.NoPostureSource
 import com.neargems.platform.SpeechVoice
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
@@ -44,6 +54,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /** Everything the platform must supply. Each platform builds one of these in its entry point. */
 class PlatformServices(
@@ -60,6 +71,9 @@ class PlatformServices(
     val clock: () -> Long,
     /** Which places the user has seen, for the New and Seen badges. A database on Android. */
     val seen: SeenStore = MemorySeenStore(),
+    /** Gravity readings, for telling portrait from landscape and mounted from held. */
+    val posture: PostureSource = NoPostureSource,
+    val notifier: PlaceNotifier = NoPlaceNotifier,
 )
 
 /**
@@ -137,22 +151,40 @@ class DriveContainer(platform: PlatformServices) {
 
     private val heading = MutableStateFlow<Float?>(null)
 
-    /** Which way the phone faces, in degrees from north, or null when unknown. For the compass pointer. */
     /** Which way the car is travelling, from successive GPS fixes, or null until it has moved. */
     private val travel = MutableStateFlow<Float?>(null)
 
+    /** Speed from the last two GPS fixes, in metres per second. */
+    private val speed = MutableStateFlow(0.0)
+    private val gravityReading = MutableStateFlow(0f to 9.8f)
+    private var steadySince = clock()
+    private var lastGravity: Pair<Float, Float>? = null
+    private val _posture = MutableStateFlow(PhonePosture.UNKNOWN)
+    private val notifier = platform.notifier
+    private val announcedIds = mutableSetOf<String>()
+
+    /** How the phone is held and whether it is mounted, updated every second. Drives the heading rule. */
+    val posture: StateFlow<PhonePosture> = _posture.asStateFlow()
+
     /**
-     * The direction the pointer is measured from. In a car it is the direction of travel, because the
-     * phone's own direction is unreliable when it is mounted; otherwise it is the phone's heading.
+     * The direction the pointer is measured from. When the phone is mounted, it is the direction of
+     * travel, because the phone's own direction is unreliable there; when it is held, the phone's heading.
      */
-    val headingDegrees: StateFlow<Float?> = combine(heading, travel, carConnected) { phone, moving, connected ->
-        if (connected && moving != null) moving else phone
+    val headingDegrees: StateFlow<Float?> = combine(heading, travel, posture) { phone, moving, now ->
+        if (now.holding == Holding.MOUNTED && moving != null) moving else phone
     }.stateIn(scope, SharingStarted.Eagerly, null)
 
     init {
         scope.launch {
             var anchor: LatLon? = null
+            var previous: Pair<LatLon, Long>? = null
             state.map { it.position }.filterNotNull().distinctUntilChanged().collect { fix ->
+                val now = clock()
+                previous?.let { (last, at) ->
+                    val seconds = (now - at) / 1000.0
+                    if (seconds > 0) speed.value = distanceMeters(last, fix) / seconds
+                }
+                previous = fix to now
                 val from = anchor
                 if (from == null) {
                     anchor = fix
@@ -160,6 +192,48 @@ class DriveContainer(platform: PlatformServices) {
                     travel.value = bearingDegrees(from, fix).toFloat()
                     anchor = fix
                 }
+            }
+        }
+        // The place on screen stays in the notification shade. A new place is announced with a soft
+        // sound, but only while audio is on, and not for the first place found when the app starts.
+        scope.launch {
+            state.map { it.current }.distinctUntilChanged { a, b -> a?.poi?.id == b?.poi?.id }.collect { ranked ->
+                if (ranked == null) {
+                    notifier.clear()
+                    return@collect
+                }
+                val from = state.value.position
+                val bearing = from?.let { bearingDegrees(it, ranked.poi.location) }
+                val detail = formatDistance(ranked.distanceMeters) + bearing?.let { " · ${compassPoint(it)}" }.orEmpty()
+                notifier.liveUpdate(ranked.poi.name, detail)
+                val firstFound = announcedIds.isEmpty()
+                if (announcedIds.add(ranked.poi.id) && !firstFound && !settings.settings.value.muteAudio) {
+                    notifier.newPlace("New place: ${ranked.poi.name}", detail)
+                }
+            }
+        }
+        // Gravity tells the orientation. A change of more than a little means the phone is being moved.
+        scope.launch {
+            platform.posture.gravity().collect { (x, y) ->
+                val last = lastGravity
+                if (last == null || abs(last.first - x) + abs(last.second - y) > STEADY_CHANGE) {
+                    steadySince = clock()
+                    lastGravity = x to y
+                }
+                gravityReading.value = x to y
+            }
+        }
+        scope.launch {
+            while (true) {
+                val (x, y) = gravityReading.value
+                _posture.value = classifyPosture(
+                    gravityX = x,
+                    gravityY = y,
+                    carConnected = carConnected.value,
+                    steadySeconds = (clock() - steadySince) / 1000,
+                    speedMps = speed.value,
+                )
+                delay(POSTURE_TICK_MS)
             }
         }
     }
@@ -310,5 +384,8 @@ class DriveContainer(platform: PlatformServices) {
         const val VOICE_SAMPLE = "This is how this voice sounds, reading out a nearby place."
         /** Fixes closer together than this are GPS jitter, not movement, so they do not change the travel direction. */
         const val MOVING_METERS = 15.0
+        /** Gravity readings this far apart, summed over both axes, count as the phone being moved. */
+        const val STEADY_CHANGE = 1.5f
+        const val POSTURE_TICK_MS = 1_000L
     }
 }

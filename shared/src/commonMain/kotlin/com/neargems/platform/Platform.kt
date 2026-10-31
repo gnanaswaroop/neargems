@@ -5,6 +5,7 @@ import com.neargems.domain.Poi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emptyFlow
 
 /** Device position. Returns null when permission is missing or no fix is available. */
 interface LocationSource {
@@ -24,6 +25,36 @@ interface HeadingSource {
 
 /** A voice the device can read with. [id] is what the app stores; [label] is shown to the user. */
 data class SpeechVoice(val id: String, val label: String)
+
+/**
+ * The pull of gravity along the phone's own axes, as (x across the screen, y up its long side). It
+ * tells portrait from landscape, and whether the phone is still.
+ */
+interface PostureSource {
+    fun gravity(): Flow<Pair<Float, Float>>
+}
+
+/** Used where the phone has no gravity sensor. The posture then stays at its default. */
+object NoPostureSource : PostureSource {
+    override fun gravity(): Flow<Pair<Float, Float>> = emptyFlow()
+}
+
+/**
+ * Notifications for the phone's notification shade. [liveUpdate] keeps the place on screen in the
+ * shade while the app runs; [newPlace] makes a short, soft sound when a new place is found.
+ */
+interface PlaceNotifier {
+    fun liveUpdate(title: String, detail: String)
+    fun newPlace(title: String, detail: String)
+    fun clear()
+}
+
+/** Used where notifications are not shown, such as tests. */
+object NoPlaceNotifier : PlaceNotifier {
+    override fun liveUpdate(title: String, detail: String) = Unit
+    override fun newPlace(title: String, detail: String) = Unit
+    override fun clear() = Unit
+}
 
 /** Reads suggestions aloud. Each platform routes this to its own speech engine. */
 interface Narrator {

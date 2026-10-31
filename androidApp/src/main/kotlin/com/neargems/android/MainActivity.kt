@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -35,6 +36,11 @@ class MainActivity : ComponentActivity() {
             locationDenied.value = true
         }
     }
+
+    /** The app works without notifications, so a refusal is not reported. */
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,6 +83,10 @@ class MainActivity : ComponentActivity() {
 
     /** Loads suggestions when location is already granted. Otherwise the disclosure screen asks first. */
     private fun onAppStarted() {
+        // Notifications show the place on screen and announce new ones. Android 13 and later ask first.
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
         if (hasLocationPermission()) {
             container.refresh()
             // The watch stops when the app is swiped away, so bring it back if the user left it on.
@@ -101,6 +111,7 @@ class MainActivity : ComponentActivity() {
     /** Shuts NearGems down: stops car watching, removes the app from recents, and ends the process. */
     private fun quit() {
         CarWatchService.stop(this)
+        getSystemService(android.app.NotificationManager::class.java).cancel(2)
         finishAndRemoveTask()
         android.os.Process.killProcess(android.os.Process.myPid())
     }
