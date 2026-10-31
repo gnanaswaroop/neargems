@@ -131,7 +131,6 @@ import com.neargems.domain.PoiCategory
 import com.neargems.domain.RankedPoi
 import com.neargems.domain.bearingDegrees
 import com.neargems.domain.PhonePosture
-import com.neargems.domain.suggestKeywords
 import com.neargems.domain.parseKeywords
 import com.neargems.domain.SUGGESTED_KEYWORDS
 import com.neargems.domain.SunPosition
@@ -1719,19 +1718,21 @@ private fun KeywordTags(keywords: String, onKeywords: (String) -> Unit) {
             }),
             modifier = Modifier.fillMaxWidth(),
         )
-        val ideas = suggestKeywords(draft, chosen)
+        // The ideas work like the category checkboxes: tap one to add it to the search, tap again to take it out.
+        val ideas = SUGGESTED_KEYWORDS.filter { draft.isBlank() || it.contains(draft.trim().lowercase()) }
         if (ideas.isNotEmpty()) {
             Text(
-                if (draft.isBlank()) "Ideas" else "Suggestions",
+                if (draft.isBlank()) "Pick from these" else "Matching ideas",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ideas.forEach { word ->
-                    AssistChip(
+                    val on = word in chosen
+                    FilterChip(
+                        selected = on,
                         onClick = {
-                            add(listOf(word))
-                            draft = ""
+                            if (on) onKeywords((chosen - word).joinToString(", ")) else add(listOf(word))
                         },
                         label = { Text(word) },
                     )

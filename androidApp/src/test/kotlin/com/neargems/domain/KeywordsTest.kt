@@ -56,14 +56,21 @@ class KeywordsTest {
     }
 
     @Test
-    fun theRankerKeepsOnlyPlacesThatMatchTheKeywords() {
+    fun keywordPlacesAreKeptNextToThePlacesOfTheChosenCategories() {
+        // A keyword adds places; it does not filter out the other ones. Both kinds are ranked together.
         val ranked = PoiRanker.rank(
             listOf(poi("1", "Shiva Temple"), poi("2", "Old Church"), poi("3", "Market Hall")),
             from = here,
             radiusMeters = 1000,
             excludedIds = emptySet(),
-            keywords = parseKeywords("temple, church"),
         )
-        assertEquals(setOf("1", "2"), ranked.map { it.poi.id }.toSet())
+        assertEquals(setOf("1", "2", "3"), ranked.map { it.poi.id }.toSet())
+    }
+
+    @Test
+    fun aChurchWithoutACategoryInTheResultsIsALandmark() {
+        val body = """{"elements":[{"type":"node","id":7,"lat":51.5,"lon":-0.12,"tags":{"name":"St Mary Church","amenity":"place_of_worship"}}]}"""
+        val places = com.neargems.data.OverpassSource.parse(body, fallback = PoiCategory.LANDMARK)
+        assertEquals(PoiCategory.LANDMARK, places.single().category)
     }
 }

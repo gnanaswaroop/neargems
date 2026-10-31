@@ -20,10 +20,12 @@ class PoiFinder(private val overpass: OverpassSource, private val wikipedia: Wik
         center: LatLon,
         radiusMeters: Int,
         categories: Set<PoiCategory>,
+        keywords: List<String> = emptyList(),
         onPartial: (List<Poi>) -> Unit = {},
     ): List<Poi> = supervisorScope {
         val answers = Channel<Result<List<Poi>>>(Channel.UNLIMITED)
         launch { answers.send(runCatching { overpass.fetch(center, radiusMeters, categories) }) }
+        launch { answers.send(runCatching { overpass.fetchNamed(center, radiusMeters, keywords) }) }
         launch {
             answers.send(
                 runCatching {
@@ -37,7 +39,8 @@ class PoiFinder(private val overpass: OverpassSource, private val wikipedia: Wik
             val answer = answers.receive()
             results += answer
             answer.getOrNull()?.let {
-                gathered += it
+                // A place can match a category and a keyword at once: keep it once.
+                gathered += it.filter { place -> gathered.none { seen -> seen.id == place.id } }
                 onPartial(gathered.toList())
             }
         }
@@ -46,6 +49,6 @@ class PoiFinder(private val overpass: OverpassSource, private val wikipedia: Wik
     }
 
     private companion object {
-        const val SOURCES = 2
+        const val SOURCES = 3
     }
 }

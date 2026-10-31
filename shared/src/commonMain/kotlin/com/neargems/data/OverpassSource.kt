@@ -21,17 +21,32 @@ class OverpassSource(private val http: Http) {
         return parse(http.postForm(ENDPOINT, "data=" + query.encodeURLParameter()))
     }
 
+    /**
+     * Named places whose name contains any of [keywords], such as "church" or "temple". These are found
+     * whatever category they are in, so a keyword adds places next to the chosen categories.
+     */
+    suspend fun fetchNamed(center: LatLon, radiusMeters: Int, keywords: List<String>): List<Poi> {
+        if (keywords.isEmpty()) return emptyList()
+        val pattern = keywords.joinToString("|") { Regex.escape(it) }
+        val query = """
+            [out:json][timeout:15];
+            nwr["name"~"($pattern)",i](around:$radiusMeters,${center.lat},${center.lon});
+            out center 100;
+        """.trimIndent()
+        return parse(http.postForm(ENDPOINT, "data=" + query.encodeURLParameter()), fallback = PoiCategory.LANDMARK)
+    }
+
     companion object {
         private const val ENDPOINT = "https://overpass-api.de/api/interpreter"
         private val json = Json { ignoreUnknownKeys = true }
 
         /** Turns an Overpass JSON response into places. */
-        fun parse(body: String): List<Poi> =
+        fun parse(body: String, fallback: PoiCategory? = null): List<Poi> =
             json.decodeFromString<OverpassResponse>(body).elements.mapNotNull { element ->
                 val name = element.tags["name"] ?: return@mapNotNull null
                 val lat = element.lat ?: element.center?.lat ?: return@mapNotNull null
                 val lon = element.lon ?: element.center?.lon ?: return@mapNotNull null
-                val category = categoryFor(element.tags["amenity"]) ?: return@mapNotNull null
+                val category = categoryFor(element.tags["amenity"]) ?: fallback ?: return@mapNotNull null
                 Poi(
                     id = "osm:${element.type}:${element.id}",
                     name = name,

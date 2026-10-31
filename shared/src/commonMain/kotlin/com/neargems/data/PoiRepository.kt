@@ -83,7 +83,7 @@ class PoiRepository(
 
     private suspend fun loadAt(position: LatLon, announce: Boolean) {
         val current = settings.settings.value
-        val key = FetchKey(current.categories, current.radiusMeters)
+        val key = FetchKey(current.categories, current.radiusMeters, parseKeywords(current.keywords))
         val origin = fetchedFrom
         if (key != fetchedFor || origin == null || distanceMeters(origin, position) > REFETCH_METERS) {
             here = position
@@ -93,7 +93,7 @@ class PoiRepository(
             candidates = kept
             publish(current.radiusMeters, announce = false, searching = true)
             try {
-                candidates = finder.find(position, current.radiusMeters, current.categories) { found ->
+                candidates = finder.find(position, current.radiusMeters, current.categories, key.keywords) { found ->
                     candidates = (found + kept).distinctBy { it.id }
                     publish(current.radiusMeters, announce = false, searching = true)
                 }
@@ -152,7 +152,6 @@ class PoiRepository(
             origin,
             radiusMeters,
             settings.dismissedIds() + settings.visitedIds(),
-            parseKeywords(settings.settings.value.keywords),
         )
         recordArrivals(ranked)
         val top = ranked.firstOrNull()
@@ -204,7 +203,7 @@ class PoiRepository(
         }
     }
 
-    private data class FetchKey(val categories: Set<PoiCategory>, val radiusMeters: Int)
+    private data class FetchKey(val categories: Set<PoiCategory>, val radiusMeters: Int, val keywords: List<String>)
 
     private companion object {
         const val REFETCH_METERS = 400.0

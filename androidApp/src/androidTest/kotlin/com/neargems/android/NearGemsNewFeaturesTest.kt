@@ -132,7 +132,7 @@ class NearGemsNewFeaturesTest {
         rule.waitUntil(TIMEOUT_MS) {
             rule.onAllNodesWithText(Fixtures.RESTAURANT_NAME).fetchSemanticsNodes().isNotEmpty()
         }
-        assertTrue(rule.onAllNodesWithText(Fixtures.CAFE_NAME).fetchSemanticsNodes().isEmpty())
+        // A keyword adds its places next to the chosen categories, so the cafe stays on the list.
         assertEquals("luigi", container.settings.settings.value.keywords)
     }
 
