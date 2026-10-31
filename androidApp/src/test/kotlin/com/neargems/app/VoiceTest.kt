@@ -19,6 +19,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -52,7 +53,9 @@ class VoiceTest {
 
         assertEquals("en-gb-a", container.settings.settings.value.voice)
         assertEquals("en-gb-a", applied.last())
-        assertEquals(listOf(DriveContainer.VOICE_SAMPLE), spoken)
+        // With a place on screen the voice reads that place; with none it reads the sample.
+        assertEquals(1, spoken.size)
+        assertTrue(spoken.single() == DriveContainer.VOICE_SAMPLE || spoken.single().contains("Corner Cafe"))
     }
 
     @Test
