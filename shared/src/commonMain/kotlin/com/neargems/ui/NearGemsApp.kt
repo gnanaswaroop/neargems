@@ -657,11 +657,15 @@ private fun PlaceListArea(state: PoiState, actions: Actions, modifier: Modifier)
             SearchingState(Modifier.weight(1f).fillMaxWidth())
         } else if (queue.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text(
-                    state.message ?: "Nothing to suggest right now.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        state.message ?: "Nothing to suggest right now.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    RefreshHint()
+                }
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1693,7 +1697,7 @@ private fun ActiveKeywordTags(keywords: String, onRemove: (String) -> Unit) {
 @Composable
 private fun RefreshHint() {
     Text(
-        "Pull down to search again. Places also update as you move.",
+        "Pull down to refresh. Places also update as you move.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
