@@ -3,10 +3,10 @@
 Near Gems tells you about interesting places close to where you are: a restaurant, a café, a bar, or a landmark with a short read-aloud summary. It works for drivers and for people on foot. It shows the distance, which way the place is, and roughly how long it takes to walk or drive there.
 
 <p align="center">
-  <img src="docs/screenshots/home-card-medium-phone.png" alt="Phone: suggestion card with photo, direction and actions" width="240">
-  <img src="docs/screenshots/list-view.png" alt="Phone: list of nearby places" width="240">
-  <img src="docs/screenshots/settings-places.png" alt="Phone: settings for categories, radius and places" width="240">
-  <img src="docs/screenshots/home-card-7-inch-tablet.png" alt="Tablet: list on the left, suggestion card on the right" width="360">
+  <img src="docs/screenshots/play-store/phone/01-home-card-phone-1200x2400.png" alt="Phone: suggestion card with photo, direction and actions" width="240">
+  <img src="docs/screenshots/play-store/phone/02-list-view-phone-1200x2400.png" alt="Phone: list of nearby places" width="240">
+  <img src="docs/screenshots/play-store/phone/04-settings-places-phone-1200x2400.png" alt="Phone: settings for categories, radius and places" width="240">
+  <img src="docs/screenshots/play-store/tablet-7-inch/01-home-card-7-inch-tablet-1200x1920.png" alt="Tablet: list on the left, suggestion card on the right" width="360">
 </p>
 
 ## What it does
