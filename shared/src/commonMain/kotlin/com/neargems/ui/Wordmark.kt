@@ -29,4 +29,4 @@ fun Wordmark(modifier: Modifier = Modifier, height: Dp = TITLE_HEIGHT) {
     )
 }
 
-private val TITLE_HEIGHT = 56.dp
+private val TITLE_HEIGHT = 38.dp
