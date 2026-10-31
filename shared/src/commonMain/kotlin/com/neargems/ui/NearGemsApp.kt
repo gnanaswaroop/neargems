@@ -272,6 +272,8 @@ private fun NearGemsContent(
                 .clipToBounds(),
         ) {
             val twoPane = maxWidth >= TWO_PANE_MIN_WIDTH
+            // The queue takes less width on narrow tablets, so the place card keeps room for its buttons.
+            val queueWidth = if (maxWidth < 720.dp) 240.dp else 340.dp
             val landscapePhone = twoPane && maxHeight < WIDE_MAX_HEIGHT
             Column(
                 modifier = Modifier
@@ -371,7 +373,7 @@ private fun NearGemsContent(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(28.dp),
                     ) {
-                        QueuePane(state = state, actions = actions)
+                        QueuePane(state = state, actions = actions, width = queueWidth)
                         Column(modifier = Modifier.weight(1f).fillMaxSize()) {
                             SuggestionArea(
                                 state = state,
@@ -660,10 +662,10 @@ private fun PlaceListArea(state: PoiState, actions: Actions, modifier: Modifier)
 
 /** Tablet left pane: the top pick and the rest of the queue. */
 @Composable
-private fun QueuePane(state: PoiState, actions: Actions) {
+private fun QueuePane(state: PoiState, actions: Actions, width: Dp) {
     val queue = listOfNotNull(state.current) + state.upcoming
     Column(
-        modifier = Modifier.width(340.dp).fillMaxSize(),
+        modifier = Modifier.width(width).fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
@@ -1275,17 +1277,17 @@ private fun ActionBar(actions: Actions, canGoBack: Boolean) {
             enabled = canGoBack,
             modifier = Modifier.weight(1f).heightIn(min = 48.dp),
             shape = RoundedCornerShape(50),
-        ) { Text("Back") }
+        ) { Text("Back", maxLines = 1, softWrap = false) }
         Button(
             onClick = actions.onSpeak,
             modifier = Modifier.weight(1.6f).heightIn(min = 48.dp),
             shape = RoundedCornerShape(50),
-        ) { Text("Read aloud") }
+        ) { Text("Read aloud", maxLines = 1, softWrap = false) }
         OutlinedButton(
             onClick = actions.onNext,
             modifier = Modifier.weight(1f).heightIn(min = 48.dp),
             shape = RoundedCornerShape(50),
-        ) { Text("Next") }
+        ) { Text("Next", maxLines = 1, softWrap = false) }
     }
 }
 
