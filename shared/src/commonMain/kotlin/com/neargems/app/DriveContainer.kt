@@ -11,6 +11,8 @@ import com.neargems.data.Visit
 import com.neargems.data.VisitStore
 import com.neargems.data.WikipediaSource
 import com.neargems.domain.LatLon
+import com.neargems.domain.bearingDegrees
+import com.neargems.domain.distanceMeters
 import com.neargems.domain.Poi
 import com.neargems.domain.RankedPoi
 import com.neargems.platform.KeyValueStore
@@ -33,6 +35,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -120,7 +123,31 @@ class DriveContainer(platform: PlatformServices) {
     private val heading = MutableStateFlow<Float?>(null)
 
     /** Which way the phone faces, in degrees from north, or null when unknown. For the compass pointer. */
-    val headingDegrees: StateFlow<Float?> = heading.asStateFlow()
+    /** Which way the car is travelling, from successive GPS fixes, or null until it has moved. */
+    private val travel = MutableStateFlow<Float?>(null)
+
+    /**
+     * The direction the pointer is measured from. In a car it is the direction of travel, because the
+     * phone's own direction is unreliable when it is mounted; otherwise it is the phone's heading.
+     */
+    val headingDegrees: StateFlow<Float?> = combine(heading, travel, carConnected) { phone, moving, connected ->
+        if (connected && moving != null) moving else phone
+    }.stateIn(scope, SharingStarted.Eagerly, null)
+
+    init {
+        scope.launch {
+            var anchor: LatLon? = null
+            state.map { it.position }.filterNotNull().distinctUntilChanged().collect { fix ->
+                val from = anchor
+                if (from == null) {
+                    anchor = fix
+                } else if (distanceMeters(from, fix) >= MOVING_METERS) {
+                    travel.value = bearingDegrees(from, fix).toFloat()
+                    anchor = fix
+                }
+            }
+        }
+    }
 
     init {
         // The compass only moves while the screen is visible.
@@ -231,5 +258,7 @@ class DriveContainer(platform: PlatformServices) {
 
     private companion object {
         const val REFRESH_INTERVAL_MS = 60_000L
+        /** Fixes closer together than this are GPS jitter, not movement, so they do not change the travel direction. */
+        const val MOVING_METERS = 15.0
     }
 }

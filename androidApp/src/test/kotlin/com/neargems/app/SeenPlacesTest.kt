@@ -47,6 +47,8 @@ class SeenPlacesTest {
         val cafe = container.state.value.current!!.poi
 
         container.next()
+        // Next waits for the search that is still finishing, so wait for the new top pick.
+        awaitUntil { container.state.value.current?.poi?.name == Fixtures.RESTAURANT_NAME }
 
         assertTrue(cafe.id in container.seenIds.value)
         // The next place has not been seen yet.
