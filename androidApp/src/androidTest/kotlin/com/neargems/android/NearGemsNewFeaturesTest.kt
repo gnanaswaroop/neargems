@@ -152,7 +152,10 @@ class NearGemsNewFeaturesTest {
         val container = container()
         showApp(container)
 
+        rule.saveScreenshot("visited-before-click")
         rule.onAllNodesWithText("Mark as visited")[0].performScrollTo().performClick()
+        rule.waitForIdle()
+        rule.saveScreenshot("visited-after-click")
         rule.waitUntil(TIMEOUT_MS) { container.visited.value.isNotEmpty() }
 
         rule.onNodeWithContentDescription("Visited places").performClick()
@@ -185,12 +188,27 @@ class NearGemsNewFeaturesTest {
         val container = container()
         showApp(container)
 
+        rule.saveScreenshot("visited-before-click")
         rule.onAllNodesWithText("Mark as visited")[0].performScrollTo().performClick()
+        rule.waitForIdle()
+        rule.saveScreenshot("visited-after-click")
 
         rule.waitUntil(TIMEOUT_MS) {
             rule.onAllNodesWithText(Fixtures.RESTAURANT_NAME).fetchSemanticsNodes().isNotEmpty()
         }
         assertTrue(rule.onAllNodesWithText(Fixtures.CAFE_NAME).fetchSemanticsNodes().isEmpty())
+    }
+
+    /** Saves the home card and the settings screen at this device's size, for the Play Store and the README. */
+    @Test
+    fun theHomeCardAndSettingsAreSavedAsScreenshots() {
+        val container = container()
+        showApp(container)
+        rule.saveScreenshot("home-card")
+
+        rule.onNodeWithContentDescription("Settings").performClick()
+        rule.waitForIdle()
+        rule.saveScreenshot("settings")
     }
 
     @Test
