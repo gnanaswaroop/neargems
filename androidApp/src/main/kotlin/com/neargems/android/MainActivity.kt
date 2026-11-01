@@ -110,7 +110,9 @@ class MainActivity : ComponentActivity() {
 
     /** Shuts NearGems down: stops car watching, removes the app from recents, and ends the process. */
     private fun quit() {
-        CarWatchService.stop(this)
+        // stopService stops the watch right away. A pending stop request is not enough: the process is killed
+        // below, and Android then restarts the service in a new process, which brings the app back.
+        stopService(Intent(this, CarWatchService::class.java))
         getSystemService(android.app.NotificationManager::class.java).cancel(2)
         finishAndRemoveTask()
         android.os.Process.killProcess(android.os.Process.myPid())
