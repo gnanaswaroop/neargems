@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="NearGems test route" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>Whitehall drive</name><desc>Trafalgar Square to Westminster Bridge, one point every 3 seconds.</desc></metadata>
+  <trk><name>Whitehall drive</name><trkseg>
+    <trkpt lat="51.508000" lon="-0.128100"><time>2026-10-31T12:00:00Z</time></trkpt>
+    <trkpt lat="51.507778" lon="-0.128067"><time>2026-10-31T12:00:03Z</time></trkpt>
+    <trkpt lat="51.507556" lon="-0.128033"><time>2026-10-31T12:00:06Z</time></trkpt>
+    <trkpt lat="51.507333" lon="-0.128000"><time>2026-10-31T12:00:09Z</time></trkpt>
+    <trkpt lat="51.507111" lon="-0.127967"><time>2026-10-31T12:00:12Z</time></trkpt>
+    <trkpt lat="51.506889" lon="-0.127933"><time>2026-10-31T12:00:15Z</time></trkpt>
+    <trkpt lat="51.506667" lon="-0.127900"><time>2026-10-31T12:00:18Z</time></trkpt>
+    <trkpt lat="51.506444" lon="-0.127867"><time>2026-10-31T12:00:21Z</time></trkpt>
+    <trkpt lat="51.506222" lon="-0.127833"><time>2026-10-31T12:00:24Z</time></trkpt>
+    <trkpt lat="51.506000" lon="-0.127800"><time>2026-10-31T12:00:27Z</time></trkpt>
+    <trkpt lat="51.505778" lon="-0.127767"><time>2026-10-31T12:00:30Z</time></trkpt>
+    <trkpt lat="51.505556" lon="-0.127733"><time>2026-10-31T12:00:33Z</time></trkpt>
+    <trkpt lat="51.505333" lon="-0.127700"><time>2026-10-31T12:00:36Z</time></trkpt>
+    <trkpt lat="51.505111" lon="-0.127667"><time>2026-10-31T12:00:39Z</time></trkpt>
+    <trkpt lat="51.504889" lon="-0.127633"><time>2026-10-31T12:00:42Z</time></trkpt>
+    <trkpt lat="51.504667" lon="-0.127600"><time>2026-10-31T12:00:45Z</time></trkpt>
+    <trkpt lat="51.504444" lon="-0.127567"><time>2026-10-31T12:00:48Z</time></trkpt>
+    <trkpt lat="51.504222" lon="-0.127533"><time>2026-10-31T12:00:51Z</time></trkpt>
+    <trkpt lat="51.504000" lon="-0.127500"><time>2026-10-31T12:00:54Z</time></trkpt>
+    <trkpt lat="51.503786" lon="-0.127407"><time>2026-10-31T12:00:57Z</time></trkpt>
+    <trkpt lat="51.503571" lon="-0.127314"><time>2026-10-31T12:01:00Z</time></trkpt>
+    <trkpt lat="51.503357" lon="-0.127221"><time>2026-10-31T12:01:03Z</time></trkpt>
+    <trkpt lat="51.503143" lon="-0.127129"><time>2026-10-31T12:01:06Z</time></trkpt>
+    <trkpt lat="51.502929" lon="-0.127036"><time>2026-10-31T12:01:09Z</time></trkpt>
+    <trkpt lat="51.502714" lon="-0.126943"><time>2026-10-31T12:01:12Z</time></trkpt>
+    <trkpt lat="51.502500" lon="-0.126850"><time>2026-10-31T12:01:15Z</time></trkpt>
+    <trkpt lat="51.502286" lon="-0.126757"><time>2026-10-31T12:01:18Z</time></trkpt>
+    <trkpt lat="51.502071" lon="-0.126664"><time>2026-10-31T12:01:21Z</time></trkpt>
+    <trkpt lat="51.501857" lon="-0.126571"><time>2026-10-31T12:01:24Z</time></trkpt>
+    <trkpt lat="51.501643" lon="-0.126479"><time>2026-10-31T12:01:27Z</time></trkpt>
+    <trkpt lat="51.501429" lon="-0.126386"><time>2026-10-31T12:01:30Z</time></trkpt>
+    <trkpt lat="51.501214" lon="-0.126293"><time>2026-10-31T12:01:33Z</time></trkpt>
+    <trkpt lat="51.501000" lon="-0.126200"><time>2026-10-31T12:01:36Z</time></trkpt>
+    <trkpt lat="51.500975" lon="-0.125863"><time>2026-10-31T12:01:39Z</time></trkpt>
+    <trkpt lat="51.500950" lon="-0.125525"><time>2026-10-31T12:01:42Z</time></trkpt>
+    <trkpt lat="51.500925" lon="-0.125188"><time>2026-10-31T12:01:45Z</time></trkpt>
+    <trkpt lat="51.500900" lon="-0.124850"><time>2026-10-31T12:01:48Z</time></trkpt>
+    <trkpt lat="51.500875" lon="-0.124512"><time>2026-10-31T12:01:51Z</time></trkpt>
+    <trkpt lat="51.500850" lon="-0.124175"><time>2026-10-31T12:01:54Z</time></trkpt>
+    <trkpt lat="51.500825" lon="-0.123838"><time>2026-10-31T12:01:57Z</time></trkpt>
+    <trkpt lat="51.500800" lon="-0.123500"><time>2026-10-31T12:02:00Z</time></trkpt>
+    <trkpt lat="51.500670" lon="-0.123200"><time>2026-10-31T12:02:03Z</time></trkpt>
+    <trkpt lat="51.500540" lon="-0.122900"><time>2026-10-31T12:02:06Z</time></trkpt>
+    <trkpt lat="51.500410" lon="-0.122600"><time>2026-10-31T12:02:09Z</time></trkpt>
+    <trkpt lat="51.500280" lon="-0.122300"><time>2026-10-31T12:02:12Z</time></trkpt>
+    <trkpt lat="51.500150" lon="-0.122000"><time>2026-10-31T12:02:15Z</time></trkpt>
+    <trkpt lat="51.500020" lon="-0.121700"><time>2026-10-31T12:02:18Z</time></trkpt>
+    <trkpt lat="51.499890" lon="-0.121400"><time>2026-10-31T12:02:21Z</time></trkpt>
+    <trkpt lat="51.499760" lon="-0.121100"><time>2026-10-31T12:02:24Z</time></trkpt>
+    <trkpt lat="51.499630" lon="-0.120800"><time>2026-10-31T12:02:27Z</time></trkpt>
+    <trkpt lat="51.499500" lon="-0.120500"><time>2026-10-31T12:02:30Z</time></trkpt>
+  </trkseg></trk>
+</gpx>
