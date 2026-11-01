@@ -149,8 +149,11 @@ import kotlin.math.sin
 
 private val RADIUS_OPTIONS = listOf(500 to "500 m", 1000 to "1 km", 2000 to "2 km", 5000 to "5 km")
 
-/** Width from which the layout switches to two panes (tablets, foldables, landscape phones). */
-private val TWO_PANE_MIN_WIDTH = 600.dp
+/**
+ * Width from which the layout switches to two panes (10-inch tablets, landscape). Narrower screens, such as a
+ * 7-inch tablet held upright, keep the single-pane layout, so the card has room for its text and buttons.
+ */
+private val TWO_PANE_MIN_WIDTH = 720.dp
 
 /** Below this height a wide screen is a landscape phone, which gives the place the full width. */
 private val WIDE_MAX_HEIGHT = 500.dp

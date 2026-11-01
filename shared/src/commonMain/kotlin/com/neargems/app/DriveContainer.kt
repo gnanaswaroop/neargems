@@ -297,9 +297,10 @@ class DriveContainer(platform: PlatformServices) {
 
     fun next() {
         val place = shownPlace.value ?: state.value.current ?: return
-        // Passing a place on means it has been seen.
+        // Passing a place on means it has been seen, and its reading stops at once.
         markSeen(place.poi)
         shownPlace.value = null
+        repository.stopSpeaking()
         scope.launch { repository.next(announce = shouldAnnounce(), shown = place) }
     }
 

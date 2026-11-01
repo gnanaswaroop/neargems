@@ -80,7 +80,63 @@ class MovementE2ETest {
         assertEquals("No more suggestions nearby.", repository.state.value.message)
     }
 
-    private fun repository(): PoiRepository {
+    @Test
+    fun dismissingTheCardStopsItBeingRead() = runBlocking {
+        val narrator = CountingNarrator()
+        val repository = repository(narrator)
+        repository.refresh(announce = true)
+        assertEquals(1, narrator.spoken.size)
+        narrator.stops = 0
+
+        repository.next(announce = false) // dismiss the cafe while it is being read aloud
+        assertEquals(1, narrator.stops)
+    }
+
+    @Test
+    fun drivingAwayFromTheReadPlaceStopsItBeingRead() = runBlocking {
+        val narrator = CountingNarrator()
+        val repository = repository(narrator)
+        repository.refresh(announce = true)
+        assertEquals(1, narrator.spoken.size)
+        narrator.stops = 0
+
+        // About 11 km north: the cafe is out of the search radius, so nothing is on the card.
+        repository.onPosition(LatLon(51.6000, -0.1200), announce = false)
+        assertNull(repository.state.value.current)
+        assertEquals(1, narrator.stops)
+    }
+
+    @Test
+    fun aPlaceReadFromTheListIsNotStoppedByAMove() = runBlocking {
+        val narrator = CountingNarrator()
+        val repository = repository(narrator)
+        repository.refresh(announce = false)
+        val restaurant = repository.state.value.upcoming.first()
+        repository.speakPlace(restaurant)
+        narrator.stops = 0
+
+        // Most of the way to the restaurant: it is now the top card, and the read place is not stopped by that.
+        repository.onPosition(LatLon(cafeSpot.lat + (restaurantSpot.lat - cafeSpot.lat) * 0.8, cafeSpot.lon), announce = false)
+        assertEquals("Luigi", repository.state.value.current?.poi?.name)
+        assertEquals(0, narrator.stops)
+    }
+
+    private class CountingNarrator : Narrator {
+        val spoken = mutableListOf<String>()
+        var stops = 0
+        override fun speak(text: String) {
+            spoken += text
+        }
+
+        override fun stop() {
+            stops++
+        }
+    }
+
+    private fun repository(narrator: Narrator = object : Narrator {
+        override fun speak(text: String) = Unit
+        override fun stop() = Unit
+    }): PoiRepository {
         val http = Http(
             HttpClient(
                 MockEngine { request ->
@@ -97,10 +153,6 @@ class MovementE2ETest {
         val location = object : LocationSource {
             override suspend fun current(): LatLon? = cafeSpot
             override fun updates() = emptyFlow<LatLon>()
-        }
-        val narrator = object : Narrator {
-            override fun speak(text: String) = Unit
-            override fun stop() = Unit
         }
         return PoiRepository(
             settings = SettingsStore(MemoryStore(), clock = { 0L }),
