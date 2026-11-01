@@ -93,3 +93,24 @@ dependencies {
 tasks.named("preBuild") {
     dependsOn(":shared:copyAndroidMainComposeResourcesToAndroidAssets")
 }
+
+// Gradle installs and runs device tests on every attached device unless ANDROID_SERIAL names one. These guards
+// stop a run that names no device, so a plain build never lands on a phone. Device tests may only use an emulator.
+tasks.matching { it.name.startsWith("install") && it.name.endsWith("Debug") || it.name.endsWith("DebugAndroidTest") }
+    .configureEach {
+        doFirst {
+            val serial = System.getenv("ANDROID_SERIAL")
+            require(!serial.isNullOrBlank()) {
+                "Set ANDROID_SERIAL to the device to use, for example ANDROID_SERIAL=emulator-5560 or the Pixel's serial."
+            }
+        }
+    }
+
+tasks.matching { it.name.startsWith("connected") && it.name.endsWith("AndroidTest") }.configureEach {
+    doFirst {
+        val serial = System.getenv("ANDROID_SERIAL").orEmpty()
+        require(serial.startsWith("emulator-")) {
+            "Device tests run only on an emulator. Set ANDROID_SERIAL to a running emulator, for example emulator-5560."
+        }
+    }
+}
