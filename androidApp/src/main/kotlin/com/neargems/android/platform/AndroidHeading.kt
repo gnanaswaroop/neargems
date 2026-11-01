@@ -5,6 +5,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.view.WindowManager
 import com.neargems.platform.HeadingSource
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -20,6 +21,7 @@ import kotlin.math.hypot
  */
 class AndroidHeadingSource(context: Context) : HeadingSource {
     private val sensors = context.getSystemService(SensorManager::class.java)
+    private val windows = context.getSystemService(WindowManager::class.java)
 
     override fun headings(): Flow<Float> = callbackFlow {
         val sensor = sensors.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
@@ -31,7 +33,8 @@ class AndroidHeadingSource(context: Context) : HeadingSource {
             override fun onSensorChanged(event: SensorEvent) {
                 SensorManager.getRotationMatrixFromVector(rotation, event.values)
                 SensorManager.getOrientation(rotation, orientation)
-                val degrees = headingFromRotation(rotation)
+                // Read per event, so a rotated screen is picked up without restarting the listener.
+                val degrees = headingFromRotation(rotation, screenRotation())
                 // Skip tiny jitter so the pointer does not shake while the phone is still.
                 if (last.isNaN() || angleBetween(last, degrees) >= MIN_CHANGE_DEGREES) {
                     last = degrees
@@ -45,6 +48,10 @@ class AndroidHeadingSource(context: Context) : HeadingSource {
         awaitClose { sensors.unregisterListener(listener) }
     }
 
+    /** The screen's rotation, one of the Surface.ROTATION_* values. */
+    @Suppress("DEPRECATION") // defaultDisplay is still the way to read it from an application context on API 26+.
+    private fun screenRotation(): Int = windows.defaultDisplay.rotation
+
     private fun angleBetween(a: Float, b: Float): Float {
         val d = abs(a - b) % 360
         return if (d > 180) 360 - d else d
@@ -57,14 +64,24 @@ class AndroidHeadingSource(context: Context) : HeadingSource {
 
 /**
  * Which way the phone faces, in degrees clockwise from north, from its rotation matrix (device to
- * world, row-major). Lying flat, the top edge points where the phone faces. Held upright, in a hand
- * or mounted in a car, the back camera points where the user faces. Only one of the two is used: the
+ * world, row-major). Lying flat, the screen's top edge points where the phone faces. Held upright, in a
+ * hand or mounted in a car, the back camera points where the user faces. Only one of the two is used: the
  * one with the longer horizontal part. Adding them would bend the heading when a mount is rolled.
+ *
+ * [screenRotation] is the Surface.ROTATION_* value of the display. The screen's top edge is device +Y in
+ * portrait, and turns with the screen: device -X, -Y and +X for 90, 180 and 270 degrees. The back camera
+ * does not turn with the screen, so it stays on device -Z.
  */
-internal fun headingFromRotation(r: FloatArray): Float {
-    // Horizontal parts as east and north. The top edge is device Y; the back camera is device -Z.
-    val topEast = r[1]
-    val topNorth = r[4]
+internal fun headingFromRotation(r: FloatArray, screenRotation: Int = 0): Float {
+    // The world east and north parts of device axis i are row 0 and row 1 of column i.
+    val (topAxis, topSign) = when (screenRotation) {
+        1 -> 0 to -1f // ROTATION_90
+        2 -> 1 to -1f // ROTATION_180
+        3 -> 0 to 1f // ROTATION_270
+        else -> 1 to 1f // ROTATION_0
+    }
+    val topEast = topSign * r[topAxis]
+    val topNorth = topSign * r[3 + topAxis]
     val cameraEast = -r[2]
     val cameraNorth = -r[5]
     val useCamera = hypot(cameraEast.toDouble(), cameraNorth.toDouble()) >= hypot(topEast.toDouble(), topNorth.toDouble())
