@@ -46,6 +46,8 @@ class PoiRepository(
     private val narrator: Narrator,
     /** Where visits are recorded. Optional so that tests can run without a history. */
     private val visits: VisitStore? = null,
+    /** Where the last search is kept, so the next open can show it. Optional so that tests can run without one. */
+    private val searchCache: SearchCache? = null,
 ) {
     private val mutex = Mutex()
     private val _state = MutableStateFlow(PoiState(loading = true, message = "Finding places nearby…"))
@@ -91,6 +93,9 @@ class PoiRepository(
     private suspend fun loadAt(position: LatLon, announce: Boolean) {
         val current = settings.settings.value
         val key = FetchKey(current.categories, current.radiusMeters, parseKeywords(current.keywords))
+        // A new app process has no search in memory, so start from the saved one. It is only used when the
+        // position is still close and the search settings are the same; otherwise the places are searched again.
+        if (fetchedFor == null) restoreSavedSearch()
         val origin = fetchedFrom
         if (key != fetchedFor || origin == null || distanceMeters(origin, position) > REFETCH_METERS) {
             here = position
@@ -119,9 +124,18 @@ class PoiRepository(
             }
             fetchedFrom = position
             fetchedFor = key
+            searchCache?.save(CachedSearch(position, key.categories, key.radiusMeters, key.keywords, candidates))
         }
         here = position
         publish(current.radiusMeters, announce)
+    }
+
+    /** Loads the saved search into memory, so the places show before the position is checked. */
+    private fun restoreSavedSearch() {
+        val saved = searchCache?.load() ?: return
+        candidates = saved.places
+        fetchedFrom = saved.origin
+        fetchedFor = FetchKey(saved.categories, saved.radiusMeters, saved.keywords)
     }
 
     /** Hides the current suggestion and shows the next one, announcing it if [announce] is set. */
