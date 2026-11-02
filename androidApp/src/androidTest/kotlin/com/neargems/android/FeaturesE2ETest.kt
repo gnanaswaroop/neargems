@@ -145,6 +145,29 @@ class FeaturesE2ETest {
         assertEquals(0, requests)
     }
 
+    @Test
+    fun theAboutPageInSettingsSaysWhyTheAppIsNeededAndShowsTheVersion() {
+        val container = container(Fixtures.httpClient())
+        rule.setContent {
+            NearGemsApp(
+                container = container,
+                onStart = container::refresh,
+                onWatchChanged = {},
+                onAllowLocation = {},
+                onOpenSettings = {},
+                appVersion = "1.1.5 (8)",
+            )
+        }
+        container.setVisible(true)
+
+        rule.onNodeWithContentDescription("Settings").performClick()
+        rule.onNodeWithText("About").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Version 1.1.5 (8)").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("NearGems suggests interesting places close to you", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
     private companion object {
         const val TIMEOUT_MS = 10_000L
     }

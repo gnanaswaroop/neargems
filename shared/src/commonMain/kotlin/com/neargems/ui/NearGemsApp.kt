@@ -192,11 +192,18 @@ fun NearGemsApp(
     onAllowLocation: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onQuit: () -> Unit = {},
+    /** Shown on the About page in Settings, e.g. "1.1.5 (8)". */
+    appVersion: String = "",
 ) {
     val seenIds by container.seenIds.collectAsState()
     val sun by container.sun.collectAsState()
     val phoneHeading by container.headingDegrees.collectAsState()
-    CompositionLocalProvider(LocalSeenIds provides seenIds, LocalSunPosition provides sun, LocalPhoneHeading provides phoneHeading) {
+    CompositionLocalProvider(
+        LocalSeenIds provides seenIds,
+        LocalSunPosition provides sun,
+        LocalPhoneHeading provides phoneHeading,
+        LocalAppVersion provides appVersion,
+    ) {
         NearGemsContent(container, onStart, onWatchChanged, locationNeeded, locationDenied, onAllowLocation, onOpenSettings, onQuit)
     }
 }
@@ -1533,6 +1540,9 @@ private fun EmptyState(message: String?, actions: Actions) {
     }
 }
 
+/** The installed app's version, shown on the About page. */
+val LocalAppVersion = compositionLocalOf { "" }
+
 @Composable
 private fun SettingsPanel(
     settings: AppSettings,
@@ -1654,6 +1664,18 @@ private fun SettingsPanel(
         settings.testLocation?.let { location ->
             TestLocationEditor(location) { chosen -> onSettings { it.copy(testLocation = chosen) } }
         }
+
+        SectionTitle("About")
+        Text(
+            "NearGems suggests interesting places close to you, such as restaurants, cafés, bakeries, bars and " +
+                "landmarks, and can read them aloud. When background watching is on, it announces places when your car " +
+                "connects. Your location is sent only to the public map and Wikipedia services to find places.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            "Version ${LocalAppVersion.current.ifBlank { "unknown" }}",
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }
 
@@ -1965,6 +1987,7 @@ private fun HistoryPanel(
                 }
             }
         }
+
     }
 }
 
