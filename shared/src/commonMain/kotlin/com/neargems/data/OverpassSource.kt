@@ -14,10 +14,21 @@ class OverpassSource(private val http: Http) {
 
     suspend fun fetch(center: LatLon, radiusMeters: Int, categories: Set<PoiCategory>): List<Poi> {
         val amenities = categories.flatMap { it.osmAmenities }
-        if (amenities.isEmpty()) return emptyList()
+        val shops = categories.flatMap { it.osmShops }
+        if (amenities.isEmpty() && shops.isEmpty()) return emptyList()
+        val filters = buildList {
+            if (amenities.isNotEmpty()) {
+                add("""nwr["amenity"~"^(${amenities.joinToString("|")})$"]["name"](around:$radiusMeters,${center.lat},${center.lon});""")
+            }
+            if (shops.isNotEmpty()) {
+                add("""nwr["shop"~"^(${shops.joinToString("|")})$"]["name"](around:$radiusMeters,${center.lat},${center.lon});""")
+            }
+        }
         val query = """
             [out:json][timeout:15];
-            nwr["amenity"~"^(${amenities.joinToString("|")})$"]["name"](around:$radiusMeters,${center.lat},${center.lon});
+            (
+              ${filters.joinToString("\n              ")}
+            );
             out center 100;
         """.trimIndent()
         return withRetries { endpoint -> parse(http.postForm(endpoint, "data=" + query.encodeURLParameter())) }
@@ -82,7 +93,7 @@ class OverpassSource(private val http: Http) {
                 val name = element.tags["name"] ?: return@mapNotNull null
                 val lat = element.lat ?: element.center?.lat ?: return@mapNotNull null
                 val lon = element.lon ?: element.center?.lon ?: return@mapNotNull null
-                val category = categoryFor(element.tags["amenity"]) ?: fallback ?: return@mapNotNull null
+                val category = categoryFor(element.tags["amenity"], element.tags["shop"]) ?: fallback ?: return@mapNotNull null
                 Poi(
                     id = "osm:${element.type}:${element.id}",
                     name = name,
@@ -93,8 +104,10 @@ class OverpassSource(private val http: Http) {
                 )
             }
 
-        private fun categoryFor(amenity: String?): PoiCategory? =
-            PoiCategory.entries.firstOrNull { amenity != null && amenity in it.osmAmenities }
+        private fun categoryFor(amenity: String?, shop: String?): PoiCategory? =
+            PoiCategory.entries.firstOrNull {
+                (amenity != null && amenity in it.osmAmenities) || (shop != null && shop in it.osmShops)
+            }
 
         private fun snippetFor(tags: Map<String, String>, category: PoiCategory): String {
             val cuisine = tags["cuisine"]
