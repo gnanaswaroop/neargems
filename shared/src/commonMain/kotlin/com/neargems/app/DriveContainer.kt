@@ -6,6 +6,7 @@ import com.neargems.data.OverpassSource
 import com.neargems.data.PoiFinder
 import com.neargems.data.PoiRepository
 import com.neargems.data.PoiState
+import com.neargems.data.SearchCache
 import com.neargems.data.SettingsStore
 import com.neargems.data.Visit
 import com.neargems.data.VisitedHistory
@@ -126,6 +127,7 @@ class DriveContainer(platform: PlatformServices) {
         narrator = MutingNarrator(platform.narrator) { settings.settings.value.muteAudio },
         // Visits are not recorded in this release. Seeing a suggestion is not visiting a place.
         visits = null,
+        searchCache = SearchCache(platform.keyValues, platform.clock),
     )
 
     val state: StateFlow<PoiState> = repository.state
