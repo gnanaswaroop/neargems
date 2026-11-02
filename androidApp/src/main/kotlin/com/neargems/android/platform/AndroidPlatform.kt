@@ -45,13 +45,22 @@ class SharedPrefsStore(context: Context) : KeyValueStore {
 class AndroidLocationSource(context: Context) : LocationSource {
     private val client = LocationServices.getFusedLocationProviderClient(context)
 
-    /** A fresh fix if one arrives quickly, otherwise the last known position. */
+    /**
+     * A recent last known position at once, so the search starts without waiting for GPS. Otherwise a fresh
+     * fix if one arrives quickly, falling back to the last known position. Live updates correct the position
+     * as soon as the phone reports it.
+     */
     @SuppressLint("MissingPermission")
     override suspend fun current(): LatLon? {
         val location = try {
-            withTimeoutOrNull(FIX_TIMEOUT_MS) {
-                client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null).await()
-            } ?: client.lastLocation.await()
+            val last = client.lastLocation.await()
+            if (last != null && System.currentTimeMillis() - last.time < RECENT_FIX_MS) {
+                last
+            } else {
+                withTimeoutOrNull(FIX_TIMEOUT_MS) {
+                    client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null).await()
+                } ?: last
+            }
         } catch (e: SecurityException) {
             null
         }
@@ -79,6 +88,8 @@ class AndroidLocationSource(context: Context) : LocationSource {
 
     private companion object {
         const val FIX_TIMEOUT_MS = 8_000L
+        /** A last known position newer than this is used without asking for a fresh fix. */
+        const val RECENT_FIX_MS = 120_000L
         const val UPDATE_INTERVAL_MS = 4_000L
         const val MIN_UPDATE_METERS = 5f
     }
