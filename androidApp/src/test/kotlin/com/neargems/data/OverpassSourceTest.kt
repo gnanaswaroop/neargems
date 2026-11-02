@@ -1,10 +1,49 @@
 package com.neargems.data
 
+import com.neargems.domain.LatLon
 import com.neargems.domain.PoiCategory
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
+import io.ktor.http.headersOf
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class OverpassSourceTest {
+
+    @Test
+    fun aBakeryIsAShopAndIsAskedForByItsShopTag() = runBlocking {
+        val queries = mutableListOf<String>()
+        val client = HttpClient(
+            MockEngine { request ->
+                queries += (request.body as TextContent).text
+                respond(
+                    content = """{"elements":[{"type":"node","id":4,"lat":51.5,"lon":-0.1,"tags":{"name":"Hobbs","shop":"bakery"}}]}""",
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            },
+        )
+
+        val pois = OverpassSource(Http(client)).fetch(LatLon(51.5, -0.1), 1000, setOf(PoiCategory.BAKERY))
+
+        assertEquals(PoiCategory.BAKERY, pois.single().category)
+        assertEquals("Hobbs", pois.single().name)
+        // Only the shop filter is sent for a bakery, not the amenity filter.
+        assertTrue(queries.single().contains("shop"))
+        assertFalse(queries.single().contains("amenity"))
+    }
+
+    @Test
+    fun bakeriesAreShownByDefault() {
+        assertTrue(PoiCategory.BAKERY in PoiCategory.DEFAULT)
+    }
 
     @Test
     fun parsesNodesAndWaysAndBuildsSnippet() {

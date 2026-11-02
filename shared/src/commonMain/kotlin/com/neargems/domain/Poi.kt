@@ -1,17 +1,18 @@
 package com.neargems.domain
 
 /** A kind of place the user wants suggestions for. */
-enum class PoiCategory(val label: String, val osmAmenities: List<String>) {
+enum class PoiCategory(val label: String, val osmAmenities: List<String>, val osmShops: List<String> = emptyList()) {
     RESTAURANT("Restaurant", listOf("restaurant")),
     CAFE("Café", listOf("cafe")),
     FAST_FOOD("Fast food", listOf("fast_food")),
     BAR("Bar or pub", listOf("bar", "pub")),
+    BAKERY("Bakery", emptyList(), listOf("bakery")),
 
     /** Sourced from Wikipedia articles rather than OpenStreetMap tags. */
     LANDMARK("Landmark", emptyList());
 
     companion object {
-        val DEFAULT: Set<PoiCategory> = setOf(RESTAURANT, CAFE, LANDMARK)
+        val DEFAULT: Set<PoiCategory> = setOf(RESTAURANT, CAFE, BAKERY, LANDMARK)
     }
 }
 
