@@ -2,11 +2,11 @@
 
 Three 30-second demo videos of NearGems on the Android emulator. Each has the phone on the left and a map on the right. The map shows the route, and a heading arrow shows the direction of travel.
 
-| File | What it shows |
-| --- | --- |
-| `walk-with-map.mp4` | Walking 42 m on Trafalgar Square at 1.4 m/s. |
-| `drive-with-map.mp4` | Driving 356 m along Victoria Embankment at 12 m/s, with the simulated car connected. |
-| `background-drive-with-map.mp4` | The same drive, with the app in the background. The notification shade shows the live notification, which changes as the car moves. |
+| File | Watch | What it shows |
+| --- | --- | --- |
+| `walk-with-map.mp4` | [YouTube Short](https://youtube.com/shorts/1EACPdiCcDg) | Walking 42 m on Trafalgar Square at 1.4 m/s. |
+| `drive-with-map.mp4` | [YouTube Short](https://youtube.com/shorts/qwB2o0JGtzI) | Driving 356 m along Victoria Embankment at 12 m/s, with the simulated car connected. |
+| `background-drive-with-map.mp4` | [YouTube Short](https://youtube.com/shorts/H9L4roCcprM) | The same drive, with the app in the background. The notification shade shows the live notification, which changes as the car moves. |
 
 The routes are in `walk-route.gpx` and `drive-route.gpx`. `replay-gpx.ps1` replays a route on the emulator.
 
