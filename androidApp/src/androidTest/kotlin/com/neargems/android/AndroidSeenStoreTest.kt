@@ -38,6 +38,29 @@ class AndroidSeenStoreTest {
     }
 
     @Test
+    fun aVersionOneDatabaseIsUpgradedKeepingItsPlacesWithTheirFirstSeenTime() {
+        // A database as version 1 wrote it: no last_seen column, one place already seen.
+        val old = context.openOrCreateDatabase(databaseName, android.content.Context.MODE_PRIVATE, null)
+        old.execSQL(
+            "CREATE TABLE seen_places (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, " +
+                "category TEXT NOT NULL, first_seen INTEGER NOT NULL)",
+        )
+        old.execSQL("INSERT INTO seen_places VALUES ('osm:node:1', 'Corner Cafe', 'Café', 1000)")
+        old.version = 1
+        old.close()
+
+        // Opening it with the current store upgrades it to version 2.
+        val upgraded = AndroidSeenStore(context, databaseName)
+        assertTrue(upgraded.seenIds().contains("osm:node:1"))
+        assertEquals(1_000L, upgraded.lastSeenTimes()["osm:node:1"])
+
+        // A place seen after the upgrade gets its own last-seen time.
+        upgraded.markSeen("osm:node:1", "Corner Cafe", "Café", 9_000L)
+        assertEquals(9_000L, upgraded.lastSeenTimes()["osm:node:1"])
+        upgraded.close()
+    }
+
+    @Test
     fun startsEmpty() {
         val store = AndroidSeenStore(context, databaseName)
         assertTrue(store.seenIds().isEmpty())
