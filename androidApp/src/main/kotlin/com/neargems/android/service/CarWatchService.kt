@@ -37,7 +37,7 @@ class CarWatchService : Service() {
         }
         createChannel()
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setSmallIcon(com.neargems.android.R.drawable.ic_stat_neargems)
             .setContentTitle("NearGems is watching")
             .setContentText("Suggestions are read out when your car connects.")
             .setOngoing(true)

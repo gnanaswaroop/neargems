@@ -41,7 +41,7 @@ class AndroidPlaceNotifier(private val context: Context) : PlaceNotifier {
 
     override fun liveUpdate(title: String, detail: String) {
         val builder = Notification.Builder(context, LIVE_CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setSmallIcon(com.neargems.android.R.drawable.ic_stat_neargems)
             .setContentTitle(title)
             .setContentText(detail)
             .setOngoing(true)
@@ -57,7 +57,7 @@ class AndroidPlaceNotifier(private val context: Context) : PlaceNotifier {
 
     override fun newPlace(title: String, detail: String) {
         val notification = Notification.Builder(context, NEW_CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setSmallIcon(com.neargems.android.R.drawable.ic_stat_neargems)
             .setContentTitle(title)
             .setContentText(detail)
             .setAutoCancel(true)
