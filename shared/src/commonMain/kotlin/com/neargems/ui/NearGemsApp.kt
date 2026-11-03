@@ -383,6 +383,19 @@ private fun NearGemsContent(
                                 now = container.now(),
                                 onShowAgain = container::showAgain,
                                 onOpenMap = container::openVisited,
+                                onOpenCard = { place ->
+                                    openedPlace = OpenedPlace(
+                                        Poi(
+                                            place.id,
+                                            place.name,
+                                            place.category,
+                                            place.location,
+                                            snippet = detailsLine(place.category.label),
+                                            interest = 0.0,
+                                        ),
+                                        lastSeen = seenPlaces.firstOrNull { it.id == place.id }?.lastSeenMillis ?: place.atMillis,
+                                    )
+                                },
                             )
                         }
                     } else if (showSettings && showPlaces) {
@@ -2198,6 +2211,7 @@ private fun HistoryPanel(
     now: Long,
     onShowAgain: (String) -> Unit,
     onOpenMap: (VisitedPlace) -> Unit,
+    onOpenCard: (VisitedPlace) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionTitle("Visited places")
@@ -2215,6 +2229,8 @@ private fun HistoryPanel(
                     .clip(RoundedCornerShape(14.dp))
                     .background(MaterialTheme.colorScheme.surface)
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+                    // Tapping the row shows the place's card, whether or not it is nearby.
+                    .clickable(role = Role.Button) { onOpenCard(place) }
                     .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
@@ -2225,6 +2241,7 @@ private fun HistoryPanel(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { onOpenCard(place) }) { Text("Show card") }
                     TextButton(onClick = { onShowAgain(place.id) }) { Text("Show again") }
                     TextButton(onClick = { onOpenMap(place) }) { Text("Open map") }
                 }

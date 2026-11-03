@@ -116,6 +116,20 @@ class IssuesE2ETest {
         rule.onNodeWithText("Visited 1", substring = true).performScrollTo().assertIsDisplayed()
     }
 
+    /** The visited history opens a place's card, with its distance from the current location. */
+    @Test
+    fun aVisitedPlaceInTheHistoryOpensItsCardWithItsDistance() {
+        show(container())
+        rule.onAllNodesWithText("Mark as visited")[0].performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithContentDescription("Visited places").performClick()
+        rule.onNodeWithText("Show card").performClick()
+        rule.waitUntil(TIMEOUT_MS) { rule.onAllNodesWithText("away", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Close").assertIsDisplayed()
+        rule.saveScreenshot("history-place-card")
+    }
+
     /** #36: closing the card of a far-away place returns to the places list. */
     @Test
     fun closingAFarAwayPlaceCardReturnsToThePlacesList() {
