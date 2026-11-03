@@ -88,6 +88,7 @@ class IssuesE2ETest {
 
         rule.onNodeWithContentDescription("Settings").performClick()
         rule.onNodeWithText("Discovered 2 · Visited 0").performScrollTo().assertIsDisplayed()
+        rule.saveScreenshot("settings-your-places")
         rule.onNodeWithText("Browse all places, near and far ›").performScrollTo().performClick()
         rule.onNodeWithText("Far Bakery").assertIsDisplayed()
         rule.saveScreenshot("places-list")
@@ -96,6 +97,39 @@ class IssuesE2ETest {
         rule.waitUntil(TIMEOUT_MS) { rule.onAllNodesWithText("Last seen", substring = true).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("Mark as visited").assertIsDisplayed()
         rule.saveScreenshot("far-place-card")
+    }
+
+    /** #36: a place marked visited is listed under Visited, and Back returns to the Settings overview. */
+    @Test
+    fun aVisitedPlaceIsListedUnderVisitedAndBackReturnsToSettings() {
+        show(container())
+        rule.onAllNodesWithText("Mark as visited")[0].performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithContentDescription("Settings").performClick()
+        rule.onNodeWithText("Browse all places, near and far ›").performScrollTo().performClick()
+        rule.onNodeWithText("Visited (1)").performClick()
+        rule.onNodeWithText(Fixtures.CAFE_NAME).assertIsDisplayed()
+        rule.saveScreenshot("places-list-visited")
+
+        rule.onNodeWithText("‹ Back to settings").performClick()
+        rule.onNodeWithText("Visited 1", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    /** #36: closing the card of a far-away place returns to the places list. */
+    @Test
+    fun closingAFarAwayPlaceCardReturnsToThePlacesList() {
+        val seen = MemorySeenStore()
+        seen.markSeen("osm:node:9", "Far Bakery", "Bakery", 1_000L, far)
+        show(container(seen))
+
+        rule.onNodeWithContentDescription("Settings").performClick()
+        rule.onNodeWithText("Browse all places, near and far ›").performScrollTo().performClick()
+        rule.onNodeWithText("Far Bakery").performClick()
+        rule.waitUntil(TIMEOUT_MS) { rule.onAllNodesWithText("Close").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Close").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Discovered (1)").assertIsDisplayed()
     }
 
     /** #33 and #20: in landscape the card's text and the Mark as visited action stay on screen. */
@@ -143,6 +177,7 @@ class IssuesE2ETest {
         rule.waitForIdle()
         rule.onAllNodesWithText(Fixtures.CAFE_NAME)[0].assertIsDisplayed()
         rule.onNodeWithText("Couldn't fetch places for your keywords", substring = true).assertIsDisplayed()
+        rule.saveScreenshot("keyword-warning")
     }
 
     private companion object {
