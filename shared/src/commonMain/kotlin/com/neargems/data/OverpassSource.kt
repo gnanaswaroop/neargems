@@ -42,13 +42,7 @@ class OverpassSource(private val http: Http) {
         // A long list in one request is slow and often times out on the public server, so it goes in batches.
         return namedBatches(keywords).flatMap { batch ->
             withRetries { endpoint ->
-                val pattern = batch.joinToString("|") { Regex.escape(it) }
-                val query = """
-                    [out:json][timeout:15];
-                    nwr["name"~"($pattern)",i](around:$radiusMeters,${center.lat},${center.lon});
-                    out center 100;
-                """.trimIndent()
-                parse(http.postForm(endpoint, "data=" + query.encodeURLParameter()), fallback = PoiCategory.LANDMARK)
+                parse(http.postForm(endpoint, "data=" + namedQuery(center, radiusMeters, batch).encodeURLParameter()), fallback = PoiCategory.LANDMARK)
             }
         }.distinctBy { it.id }
     }
@@ -85,6 +79,23 @@ class OverpassSource(private val http: Http) {
 
         /** Keywords grouped for separate requests, [NAMED_BATCH] at a time. */
         fun namedBatches(keywords: List<String>): List<List<String>> = keywords.chunked(NAMED_BATCH)
+
+        /**
+         * The Overpass query for named places. Keywords are placed inside a double-quoted string, so only letters,
+         * digits, spaces, hyphens and apostrophes are kept: anything else could break the query and make the server
+         * reject it, which the app would then retry for nothing.
+         */
+        fun namedQuery(center: LatLon, radiusMeters: Int, keywords: List<String>): String {
+            val pattern = keywords.map(::cleanKeyword).filter { it.isNotEmpty() }.joinToString("|")
+            return """
+                [out:json][timeout:15];
+                nwr["name"~"($pattern)",i](around:$radiusMeters,${center.lat},${center.lon});
+                out center 100;
+            """.trimIndent()
+        }
+
+        fun cleanKeyword(keyword: String): String =
+            keyword.filter { it.isLetterOrDigit() || it == ' ' || it == '-' || it == '\'' }.trim()
         private val json = Json { ignoreUnknownKeys = true }
 
         /** Turns an Overpass JSON response into places. */

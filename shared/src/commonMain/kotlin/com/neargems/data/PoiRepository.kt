@@ -78,7 +78,7 @@ class PoiRepository(
             }
             // A pull-down asks for a fresh search, rather than re-ranking the places already found.
             if (force) fetchedFor = null
-            loadAt(position, announce)
+            loadAt(position, announce, restoreSaved = !force)
         }
     }
 
@@ -90,12 +90,13 @@ class PoiRepository(
         mutex.withLock { loadAt(position, announce) }
     }
 
-    private suspend fun loadAt(position: LatLon, announce: Boolean) {
+    private suspend fun loadAt(position: LatLon, announce: Boolean, restoreSaved: Boolean = true) {
         val current = settings.settings.value
         val key = FetchKey(current.categories, current.radiusMeters, parseKeywords(current.keywords))
         // A new app process has no search in memory, so start from the saved one. It is only used when the
         // position is still close and the search settings are the same; otherwise the places are searched again.
-        if (fetchedFor == null) restoreSavedSearch()
+        // A pull-down skips this, so it always searches again.
+        if (fetchedFor == null && restoreSaved) restoreSavedSearch()
         val origin = fetchedFrom
         if (key != fetchedFor || origin == null || distanceMeters(origin, position) > REFETCH_METERS) {
             here = position

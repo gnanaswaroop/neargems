@@ -182,7 +182,7 @@ class FeaturesE2ETest {
         val seen = object : SeenStore {
             override fun seenIds(): Set<String> = setOf(cafe.id)
             override fun lastSeenTimes(): Map<String, Long> = mapOf(cafe.id to 1_000L)
-            override fun markSeen(id: String, name: String, category: String, atMillis: Long) = Unit
+            override fun markSeen(id: String, name: String, category: String, atMillis: Long, location: com.neargems.domain.LatLon?) = Unit
         }
         val http = HttpClient(
             MockEngine {

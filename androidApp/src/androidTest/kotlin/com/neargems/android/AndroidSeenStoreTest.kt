@@ -95,4 +95,30 @@ class AndroidSeenStoreTest {
         assertEquals(1_000L, firstSeen)
         store.close()
     }
+
+    @Test
+    fun aVersionTwoDatabaseIsUpgradedKeepingItsPlacesWithoutALocationUntilTheyAreSeenAgain() {
+        // A database as version 2 wrote it: last_seen but no location.
+        val old = context.openOrCreateDatabase(databaseName, android.content.Context.MODE_PRIVATE, null)
+        old.execSQL(
+            "CREATE TABLE seen_places (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, " +
+                "category TEXT NOT NULL, first_seen INTEGER NOT NULL, last_seen INTEGER NOT NULL)",
+        )
+        old.execSQL("INSERT INTO seen_places VALUES ('osm:node:1', 'Corner Cafe', 'Café', 1000, 4000)")
+        old.version = 2
+        old.close()
+
+        val upgraded = AndroidSeenStore(context, databaseName)
+        val kept = upgraded.seenPlaces().single()
+        assertEquals("osm:node:1", kept.id)
+        assertEquals(4_000L, kept.lastSeenMillis)
+        assertEquals(null, kept.location)
+
+        // Seen again after the upgrade, the place gets its location.
+        upgraded.markSeen("osm:node:1", "Corner Cafe", "Café", 9_000L, com.neargems.domain.LatLon(51.5, -0.12))
+        val located = upgraded.seenPlaces().single()
+        assertEquals(com.neargems.domain.LatLon(51.5, -0.12), located.location)
+        assertEquals(1_000L, located.firstSeenMillis)
+        upgraded.close()
+    }
 }

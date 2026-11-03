@@ -32,6 +32,7 @@ import com.neargems.platform.LocationSource
 import com.neargems.platform.MapOpener
 import com.neargems.platform.MemorySeenStore
 import com.neargems.platform.Narrator
+import com.neargems.platform.SeenPlace
 import com.neargems.platform.SeenStore
 import com.neargems.platform.NoPlaceNotifier
 import com.neargems.platform.PlaceNotifier
@@ -43,6 +44,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -117,11 +119,16 @@ class DriveContainer(platform: PlatformServices) {
     /** Ids of the places the user has seen. Anything else is New. */
     val seenIds: StateFlow<Set<String>> = _seenIds.asStateFlow()
 
+    private val _seenPlaces = MutableStateFlow(seenStore.seenPlaces())
+    /** Every place the user has seen, most recent first, for the places list in Settings. */
+    val seenPlaces: StateFlow<List<SeenPlace>> = _seenPlaces.asStateFlow()
+
     /** Marks a place as seen: shown and moved on from, opened, passed with Next, or read aloud. */
     fun markSeen(poi: Poi) {
         if (!recordedThisSession.add(poi.id)) return
-        seenStore.markSeen(poi.id, poi.name, poi.category.label, clock())
+        seenStore.markSeen(poi.id, poi.name, poi.category.label, clock(), poi.location)
         _seenIds.value = _seenIds.value + poi.id
+        _seenPlaces.value = seenStore.seenPlaces()
     }
 
     val repository = PoiRepository(
@@ -301,7 +308,15 @@ class DriveContainer(platform: PlatformServices) {
 
     /** Searches again from scratch, for a pull-down, so the searching state stays up while the new results load. */
     fun pullToRefresh() {
-        scope.launch { repository.refresh(announce = shouldAnnounce(), force = true) }
+        searchAgain()
+    }
+
+    /** The search in flight, if any. A new search replaces it, so a slow search never holds up the one asked for now. */
+    private var searchJob: Job? = null
+
+    private fun searchAgain() {
+        searchJob?.cancel()
+        searchJob = scope.launch { repository.refresh(announce = shouldAnnounce(), force = true) }
     }
 
     fun next() {
@@ -373,7 +388,7 @@ class DriveContainer(platform: PlatformServices) {
             val criteriaChanged = before.categories != after.categories ||
                 before.keywords != after.keywords ||
                 before.radiusMeters != after.radiusMeters
-            if (criteriaChanged) repository.refresh(announce = shouldAnnounce(), force = true) else refreshAsync()
+            if (criteriaChanged) searchAgain() else refreshAsync()
         }
     }
 

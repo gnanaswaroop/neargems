@@ -44,6 +44,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Surface
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -123,6 +124,9 @@ import com.neargems.data.ThemeMode
 import com.neargems.data.Visit
 import com.neargems.domain.LatLon
 import com.neargems.data.VisitedPlace
+import com.neargems.app.PlaceOverview
+import com.neargems.app.placeOverview
+import com.neargems.platform.SeenPlace
 import com.neargems.data.matches
 import com.neargems.platform.SpeechVoice
 import com.neargems.shared.generated.resources.Res
@@ -139,6 +143,7 @@ import com.neargems.domain.SUGGESTED_KEYWORDS
 import com.neargems.domain.SunPosition
 import com.neargems.domain.compassPoint
 import com.neargems.domain.driveMinutes
+import com.neargems.domain.distanceMeters
 import com.neargems.domain.formatDistance
 import com.neargems.domain.summarise
 import com.neargems.domain.walkMinutes
@@ -166,6 +171,8 @@ private const val MAP_SHARE = 0.25f
 
 /** Height taken by the category, title, distance, buttons and padding, leaving the rest for text. */
 private val CARD_CHROME = 230.dp
+/** Space the landscape card keeps for its category, name and "Read more", so the text fits the rest. */
+private val WIDE_TEXT_CHROME = 110.dp
 
 /** Height of one line of the snippet body. */
 private val SNIPPET_LINE_HEIGHT = 25.dp
@@ -241,9 +248,15 @@ private fun NearGemsContent(
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showHistory by rememberSaveable { mutableStateOf(false) }
     val visited by container.visited.collectAsState()
+    val seenPlaces by container.seenPlaces.collectAsState()
+    var showPlaces by remember { mutableStateOf(false) }
+    // The place opened from the places list, shown as its card on top of Settings.
+    var openedPlace by remember { mutableStateOf<OpenedPlace?>(null) }
     // The disclosure comes before each system location prompt.
     var disclosed by remember { mutableStateOf(false) }
-    PlatformBackHandler(enabled = showSettings) { showSettings = false }
+    PlatformBackHandler(enabled = showSettings) {
+        if (showPlaces) showPlaces = false else showSettings = false
+    }
 
     LaunchedEffect(Unit) { onStart() }
 
@@ -290,6 +303,8 @@ private fun NearGemsContent(
             // The queue takes less width on narrow tablets, so the place card keeps room for its buttons.
             val queueWidth = if (maxWidth < 720.dp) 240.dp else 340.dp
             val landscapePhone = twoPane && maxHeight < WIDE_MAX_HEIGHT
+            // Landscape tablets keep the queue on the left, and show the card's text beside its map.
+            val landscape = maxWidth > maxHeight
             PullToRefreshBox(
                 isRefreshing = state.searching || state.loading,
                 onRefresh = { container.pullToRefresh() },
@@ -370,6 +385,20 @@ private fun NearGemsContent(
                                 onOpenMap = container::openVisited,
                             )
                         }
+                    } else if (showSettings && showPlaces) {
+                        Column(
+                            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            PlacesPanel(
+                                seen = seenPlaces,
+                                visited = visited,
+                                origin = state.position,
+                                now = container.now(),
+                                onOpen = { openedPlace = it },
+                                onBack = { showPlaces = false },
+                            )
+                        }
                     } else if (showSettings) {
                         Column(
                             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
@@ -381,6 +410,8 @@ private fun NearGemsContent(
                                 now = container.now(),
                                 voices = voices,
                                 posture = posture,
+                                overview = placeOverview(seenPlaces, visited),
+                                onBrowsePlaces = { showPlaces = true },
                                 onSettings = container::updateSettings,
                                 onVoice = container::chooseVoice,
                                 onWatchChanged = onWatchChanged,
@@ -421,6 +452,7 @@ private fun NearGemsContent(
                                     from = state.position,
                                     heading = heading,
                                     large = true,
+                                    wide = landscape,
                                     actions = actions,
                                     modifier = Modifier.weight(1f).fillMaxWidth(),
                                 )
@@ -441,6 +473,15 @@ private fun NearGemsContent(
                     }
                 }
             }
+        }
+        openedPlace?.let { place ->
+            PlaceCardDialog(
+                place = place,
+                origin = state.position,
+                heading = heading,
+                actions = actions,
+                onDismiss = { openedPlace = null },
+            )
         }
     }
 }
@@ -1039,7 +1080,7 @@ private fun SuggestionCard(
 
     // If the text still does not fit a very short window, the card scrolls rather than cutting it off.
     if (wide) {
-        WideSuggestionCard(ranked, from, heading, h, actions, onPhotoClick = { photoOpen = true }, onDetailClick = { detailOpen = true })
+        WideSuggestionCard(ranked, from, heading, h, actions, onDetailClick = { detailOpen = true })
     } else {
     Column(
         modifier = Modifier
@@ -1134,10 +1175,12 @@ private fun WideSuggestionCard(
     heading: Float?,
     availableHeight: Dp,
     actions: Actions,
-    onPhotoClick: () -> Unit,
     onDetailClick: () -> Unit,
 ) {
     val poi = ranked.poi
+    // The text is folded to the space the card has, as in portrait, so it reads without scrolling.
+    val foldLines = ((availableHeight - WIDE_TEXT_CHROME) / SNIPPET_LINE_HEIGHT).toInt().coerceIn(1, 12)
+    val collapsed = summarise(poi.snippet, maxChars = foldLines * SNIPPET_CHARS_PER_LINE)
     Row(
         modifier = Modifier
             .fillMaxSize()
@@ -1147,15 +1190,10 @@ private fun WideSuggestionCard(
             .padding(20.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            val photoSize = (availableHeight - 56.dp).coerceAtLeast(120.dp)
-            poi.photo?.let { photo ->
-                PhotoBlock(photo, poi.name, photoSize, actions, onPhotoClick)
-            } ?: GenericPhoto(photoSize)
-        }
+        // The text on the left.
         Column(
-            modifier = Modifier.weight(1.3f).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
@@ -1170,22 +1208,49 @@ private fun WideSuggestionCard(
                 poi.name,
                 fontFamily = displayFont(),
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 40.sp,
-                lineHeight = 46.sp,
+                fontSize = 28.sp,
+                lineHeight = 34.sp,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.semantics { heading() },
             )
             Text(
-                poi.snippet,
+                collapsed,
                 style = MaterialTheme.typography.bodyLarge,
                 fontSize = 17.sp,
                 lineHeight = 25.sp,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                 modifier = Modifier.semantics { role = Role.Button }.clickable(onClick = onDetailClick),
             )
-            DistanceDetails(ranked, from, heading)
-            TextButton(onClick = { actions.onVisited(ranked) }) { Text("Mark as visited") }
-            from?.let { MiniMap(from = it, to = poi.location, height = 120.dp, heading = LocalPhoneHeading.current, onClick = { actions.onOpenMap(poi) }) }
+            if (collapsed != poi.snippet) {
+                Text(
+                    "Read more ›",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.semantics { role = Role.Button }.clickable(onClick = onDetailClick),
+                )
+            }
+        }
+        // The map on the right, with the rest of the height. The distance is on the map, and the action sits over it,
+        // so the action stays on screen however short the card is.
+        Box(modifier = Modifier.weight(1.1f).fillMaxHeight()) {
+            from?.let {
+                MiniMap(
+                    from = it,
+                    to = poi.location,
+                    modifier = Modifier.fillMaxSize(),
+                    height = Dp.Unspecified,
+                    heading = LocalPhoneHeading.current,
+                    onClick = { actions.onOpenMap(poi) },
+                )
+            }
+            Surface(
+                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 2.dp,
+            ) {
+                TextButton(onClick = { actions.onVisited(ranked) }) { Text("Mark as visited") }
+            }
         }
     }
 }
@@ -1565,6 +1630,8 @@ private fun SettingsPanel(
     now: Long,
     voices: List<SpeechVoice>,
     posture: PhonePosture,
+    overview: PlaceOverview,
+    onBrowsePlaces: () -> Unit,
     onSettings: ((AppSettings) -> AppSettings) -> Unit,
     onVoice: (String?) -> Unit,
     onWatchChanged: (Boolean) -> Unit,
@@ -1639,6 +1706,13 @@ private fun SettingsPanel(
                 )
             }
         }
+
+        SectionTitle("Your places")
+        Text(
+            "Discovered ${overview.discovered} · Visited ${overview.visited}",
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        TextButton(onClick = onBrowsePlaces) { Text("Browse all places, near and far ›") }
 
         SectionTitle("Car")
         Text(
@@ -1964,6 +2038,160 @@ private fun TestLocationEditor(location: LatLon, onLocation: (LatLon) -> Unit) {
 }
 
 /** Places marked as visited, newest first. A place can be shown again, or opened on the map. */
+/** A place opened from the places list: where it is, and when it was last seen. */
+private data class OpenedPlace(val poi: Poi, val lastSeen: Long?)
+
+private enum class PlacesTab { DISCOVERED, VISITED }
+
+/** Every place seen and every place visited, near or far, from Settings. Tapping one shows its card. */
+@Composable
+private fun PlacesPanel(
+    seen: List<SeenPlace>,
+    visited: List<VisitedPlace>,
+    origin: LatLon?,
+    now: Long,
+    onOpen: (OpenedPlace) -> Unit,
+    onBack: () -> Unit,
+) {
+    var tab by rememberSaveable { mutableStateOf(PlacesTab.DISCOVERED) }
+    val lastSeenById = seen.associate { it.id to it.lastSeenMillis }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        TextButton(onClick = onBack) { Text("‹ Back to settings") }
+        SectionTitle("Your places")
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = tab == PlacesTab.DISCOVERED,
+                onClick = { tab = PlacesTab.DISCOVERED },
+                label = { Text("Discovered (${seen.size})") },
+            )
+            FilterChip(
+                selected = tab == PlacesTab.VISITED,
+                onClick = { tab = PlacesTab.VISITED },
+                label = { Text("Visited (${visited.size})") },
+            )
+        }
+        when (tab) {
+            PlacesTab.DISCOVERED -> {
+                if (seen.isEmpty()) {
+                    Text(
+                        "Places you see in the suggestions are kept here, near or far.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                seen.forEach { place ->
+                    val location = place.location
+                    val away = location?.let { origin?.let { o -> "${formatDistance(distanceMeters(o, it))} away" } }
+                    val opened = location?.let {
+                        OpenedPlace(
+                            Poi(place.id, place.name, categoryOf(place.category), it, snippet = detailsLine(place.category), interest = 0.0),
+                            place.lastSeenMillis,
+                        )
+                    }
+                    PlaceRow(
+                        name = place.name,
+                        detail = "${place.category} · Last seen ${LocalDateTimeLabel.current(place.lastSeenMillis)}",
+                        extra = away ?: "Location not kept yet. It is added the next time this place is seen.",
+                        onClick = opened?.let { { onOpen(it) } },
+                    )
+                }
+            }
+            PlacesTab.VISITED -> {
+                if (visited.isEmpty()) {
+                    Text(
+                        "Places you mark as visited show up here.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                visited.forEach { place ->
+                    val away = origin?.let { "${formatDistance(distanceMeters(it, place.location))} away" }
+                    val opened = OpenedPlace(
+                        Poi(place.id, place.name, place.category, place.location, snippet = detailsLine(place.category.label), interest = 0.0),
+                        lastSeen = lastSeenById[place.id] ?: place.atMillis,
+                    )
+                    PlaceRow(
+                        name = place.name,
+                        detail = "${place.category.label} · ${visitedLabel(place.atMillis, now)}",
+                        extra = away.orEmpty(),
+                        onClick = { onOpen(opened) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaceRow(name: String, detail: String, extra: String, onClick: (() -> Unit)?) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (extra.isNotBlank()) {
+            Text(
+                extra,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (onClick != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** The card for a place opened from the places list: the same card as on the home screen, with its last seen time. */
+@Composable
+private fun PlaceCardDialog(
+    place: OpenedPlace,
+    origin: LatLon?,
+    heading: Float?,
+    actions: Actions,
+    onDismiss: () -> Unit,
+) {
+    val ranked = RankedPoi(place.poi, origin?.let { distanceMeters(it, place.poi.location) } ?: 0.0, place.poi.interest)
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CompositionLocalProvider(
+                LocalPreviousSeen provides (place.lastSeen?.let { mapOf(place.poi.id to it) } ?: emptyMap()),
+            ) {
+                BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    SuggestionCard(
+                        ranked = ranked,
+                        large = false,
+                        wide = false,
+                        from = origin,
+                        heading = heading,
+                        availableHeight = maxHeight,
+                        actions = actions,
+                    )
+                }
+            }
+            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Close") }
+        }
+    }
+}
+
+/** Saved places do not keep their description, so the card says so rather than showing nothing. */
+private fun detailsLine(categoryLabel: String): String =
+    "$categoryLabel. The full details come back when this place is nearby again."
+
+private fun categoryOf(label: String): PoiCategory =
+    PoiCategory.entries.firstOrNull { it.label == label } ?: PoiCategory.LANDMARK
+
 @Composable
 private fun HistoryPanel(
     visited: List<VisitedPlace>,
