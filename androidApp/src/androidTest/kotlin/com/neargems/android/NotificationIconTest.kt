@@ -35,22 +35,37 @@ class NotificationIconTest {
     }
 
     @Test
+    fun theLivePlaceNotificationIsNotLowImportance() {
+        // Low-importance notifications do not show their small icon in the status bar.
+        AndroidPlaceNotifier(context).liveUpdate("Corner Cafe", "10 m away")
+
+        val posted = awaitPosted().first()
+        val channel = manager.getNotificationChannel(posted.notification.channelId)
+        assertTrue(channel.importance >= android.app.NotificationManager.IMPORTANCE_DEFAULT)
+    }
+
+    @Test
     fun theNewPlaceNotificationUsesTheNearGemsIcon() {
         AndroidPlaceNotifier(context).newPlace("Luigi", "500 m away")
 
         assertSmallIcon(expectedIcon())
     }
 
-    private fun expectedIcon(): Icon = Icon.createWithResource(context, com.neargems.android.R.drawable.ic_stat_neargems)
-
-    private fun assertSmallIcon(expected: Icon) {
-        // The notification service applies a post a moment later, so wait for it to appear.
+    /** The notification service applies a post a moment later, so wait for the NearGems notifications to appear. */
+    private fun awaitPosted(): List<android.service.notification.StatusBarNotification> {
         val deadline = System.currentTimeMillis() + POST_TIMEOUT_MS
         var posted = emptyList<android.service.notification.StatusBarNotification>()
         while (posted.isEmpty() && System.currentTimeMillis() < deadline) {
             posted = manager.activeNotifications.filter { it.packageName == context.packageName }
             if (posted.isEmpty()) Thread.sleep(100)
         }
+        return posted
+    }
+
+    private fun expectedIcon(): Icon = Icon.createWithResource(context, com.neargems.android.R.drawable.ic_stat_neargems)
+
+    private fun assertSmallIcon(expected: Icon) {
+        val posted = awaitPosted()
         assertTrue("a NearGems notification should be posted", posted.isNotEmpty())
         posted.forEach { status ->
             assertEquals(expected.toString(), status.notification.smallIcon.toString())

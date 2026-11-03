@@ -26,8 +26,12 @@ class AndroidPlaceNotifier(private val context: Context) : PlaceNotifier {
     )
 
     init {
+        // Android hides the small icon of a low-importance notification from the status bar, so the place on screen
+        // uses default importance with no sound. A channel keeps its importance once created, so it has a new id,
+        // and the old low-importance channel is removed.
+        manager.deleteNotificationChannel(OLD_LIVE_CHANNEL)
         manager.createNotificationChannel(
-            NotificationChannel(LIVE_CHANNEL, "Place on screen", NotificationManager.IMPORTANCE_LOW).apply {
+            NotificationChannel(LIVE_CHANNEL, "Place on screen", NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = "The place NearGems is showing, kept in the notification shade."
                 setSound(null, null)
             },
@@ -71,7 +75,8 @@ class AndroidPlaceNotifier(private val context: Context) : PlaceNotifier {
     }
 
     private companion object {
-        const val LIVE_CHANNEL = "place-on-screen"
+        const val LIVE_CHANNEL = "place-on-screen-status"
+        const val OLD_LIVE_CHANNEL = "place-on-screen"
         const val NEW_CHANNEL = "new-places"
         const val LIVE_ID = 2
         const val NEW_ID = 3
