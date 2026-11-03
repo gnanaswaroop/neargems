@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="NearGems test route" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>walk-route</name><desc>Walking pace (1.4 m/s) on the Whitehall pavement, 30 seconds.</desc></metadata>
+  <trk><name>walk-route</name><trkseg>
+    <trkpt lat="51.508000" lon="-0.128100"><time>2026-11-03T12:00:00Z</time></trkpt>
+    <trkpt lat="51.507987" lon="-0.128098"><time>2026-11-03T12:00:01Z</time></trkpt>
+    <trkpt lat="51.507975" lon="-0.128096"><time>2026-11-03T12:00:02Z</time></trkpt>
+    <trkpt lat="51.507962" lon="-0.128094"><time>2026-11-03T12:00:03Z</time></trkpt>
+    <trkpt lat="51.507950" lon="-0.128093"><time>2026-11-03T12:00:04Z</time></trkpt>
+    <trkpt lat="51.507937" lon="-0.128091"><time>2026-11-03T12:00:05Z</time></trkpt>
+    <trkpt lat="51.507925" lon="-0.128089"><time>2026-11-03T12:00:06Z</time></trkpt>
+    <trkpt lat="51.507912" lon="-0.128087"><time>2026-11-03T12:00:07Z</time></trkpt>
+    <trkpt lat="51.507900" lon="-0.128085"><time>2026-11-03T12:00:08Z</time></trkpt>
+    <trkpt lat="51.507887" lon="-0.128083"><time>2026-11-03T12:00:09Z</time></trkpt>
+    <trkpt lat="51.507875" lon="-0.128081"><time>2026-11-03T12:00:10Z</time></trkpt>
+    <trkpt lat="51.507862" lon="-0.128080"><time>2026-11-03T12:00:11Z</time></trkpt>
+    <trkpt lat="51.507850" lon="-0.128078"><time>2026-11-03T12:00:12Z</time></trkpt>
+    <trkpt lat="51.507837" lon="-0.128076"><time>2026-11-03T12:00:13Z</time></trkpt>
+    <trkpt lat="51.507824" lon="-0.128074"><time>2026-11-03T12:00:14Z</time></trkpt>
+    <trkpt lat="51.507812" lon="-0.128072"><time>2026-11-03T12:00:15Z</time></trkpt>
+    <trkpt lat="51.507799" lon="-0.128070"><time>2026-11-03T12:00:16Z</time></trkpt>
+    <trkpt lat="51.507787" lon="-0.128068"><time>2026-11-03T12:00:17Z</time></trkpt>
+    <trkpt lat="51.507774" lon="-0.128066"><time>2026-11-03T12:00:18Z</time></trkpt>
+    <trkpt lat="51.507762" lon="-0.128065"><time>2026-11-03T12:00:19Z</time></trkpt>
+    <trkpt lat="51.507749" lon="-0.128063"><time>2026-11-03T12:00:20Z</time></trkpt>
+    <trkpt lat="51.507737" lon="-0.128061"><time>2026-11-03T12:00:21Z</time></trkpt>
+    <trkpt lat="51.507724" lon="-0.128059"><time>2026-11-03T12:00:22Z</time></trkpt>
+    <trkpt lat="51.507712" lon="-0.128057"><time>2026-11-03T12:00:23Z</time></trkpt>
+    <trkpt lat="51.507699" lon="-0.128055"><time>2026-11-03T12:00:24Z</time></trkpt>
+    <trkpt lat="51.507687" lon="-0.128053"><time>2026-11-03T12:00:25Z</time></trkpt>
+    <trkpt lat="51.507674" lon="-0.128051"><time>2026-11-03T12:00:26Z</time></trkpt>
+    <trkpt lat="51.507662" lon="-0.128049"><time>2026-11-03T12:00:27Z</time></trkpt>
+    <trkpt lat="51.507649" lon="-0.128047"><time>2026-11-03T12:00:28Z</time></trkpt>
+    <trkpt lat="51.507636" lon="-0.128045"><time>2026-11-03T12:00:29Z</time></trkpt>
+    <trkpt lat="51.507624" lon="-0.128043"><time>2026-11-03T12:00:30Z</time></trkpt>
+  </trkseg></trk>
+</gpx>

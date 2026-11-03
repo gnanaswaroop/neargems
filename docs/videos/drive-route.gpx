@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="NearGems test route" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>drive-route</name><desc>Driving pace (12 m/s, 43 km/h) along a primary road (OSM way 45114498), 30 seconds.</desc></metadata>
+  <trk><name>drive-route</name><trkseg>
+    <trkpt lat="51.504655" lon="-0.123225"><time>2026-11-03T12:00:00Z</time></trkpt>
+    <trkpt lat="51.504550" lon="-0.123261"><time>2026-11-03T12:00:01Z</time></trkpt>
+    <trkpt lat="51.504444" lon="-0.123294"><time>2026-11-03T12:00:02Z</time></trkpt>
+    <trkpt lat="51.504338" lon="-0.123325"><time>2026-11-03T12:00:03Z</time></trkpt>
+    <trkpt lat="51.504231" lon="-0.123357"><time>2026-11-03T12:00:04Z</time></trkpt>
+    <trkpt lat="51.504125" lon="-0.123388"><time>2026-11-03T12:00:05Z</time></trkpt>
+    <trkpt lat="51.504019" lon="-0.123419"><time>2026-11-03T12:00:06Z</time></trkpt>
+    <trkpt lat="51.503913" lon="-0.123449"><time>2026-11-03T12:00:07Z</time></trkpt>
+    <trkpt lat="51.503807" lon="-0.123480"><time>2026-11-03T12:00:08Z</time></trkpt>
+    <trkpt lat="51.503700" lon="-0.123511"><time>2026-11-03T12:00:09Z</time></trkpt>
+    <trkpt lat="51.503594" lon="-0.123542"><time>2026-11-03T12:00:10Z</time></trkpt>
+    <trkpt lat="51.503488" lon="-0.123573"><time>2026-11-03T12:00:11Z</time></trkpt>
+    <trkpt lat="51.503382" lon="-0.123604"><time>2026-11-03T12:00:12Z</time></trkpt>
+    <trkpt lat="51.503276" lon="-0.123635"><time>2026-11-03T12:00:13Z</time></trkpt>
+    <trkpt lat="51.503169" lon="-0.123666"><time>2026-11-03T12:00:14Z</time></trkpt>
+    <trkpt lat="51.503063" lon="-0.123696"><time>2026-11-03T12:00:15Z</time></trkpt>
+    <trkpt lat="51.502957" lon="-0.123726"><time>2026-11-03T12:00:16Z</time></trkpt>
+    <trkpt lat="51.502851" lon="-0.123756"><time>2026-11-03T12:00:17Z</time></trkpt>
+    <trkpt lat="51.502744" lon="-0.123786"><time>2026-11-03T12:00:18Z</time></trkpt>
+    <trkpt lat="51.502638" lon="-0.123815"><time>2026-11-03T12:00:19Z</time></trkpt>
+    <trkpt lat="51.502532" lon="-0.123845"><time>2026-11-03T12:00:20Z</time></trkpt>
+    <trkpt lat="51.502425" lon="-0.123874"><time>2026-11-03T12:00:21Z</time></trkpt>
+    <trkpt lat="51.502319" lon="-0.123902"><time>2026-11-03T12:00:22Z</time></trkpt>
+    <trkpt lat="51.502212" lon="-0.123929"><time>2026-11-03T12:00:23Z</time></trkpt>
+    <trkpt lat="51.502106" lon="-0.123957"><time>2026-11-03T12:00:24Z</time></trkpt>
+    <trkpt lat="51.501999" lon="-0.123985"><time>2026-11-03T12:00:25Z</time></trkpt>
+    <trkpt lat="51.501892" lon="-0.124008"><time>2026-11-03T12:00:26Z</time></trkpt>
+    <trkpt lat="51.501785" lon="-0.124031"><time>2026-11-03T12:00:27Z</time></trkpt>
+    <trkpt lat="51.501678" lon="-0.124052"><time>2026-11-03T12:00:28Z</time></trkpt>
+    <trkpt lat="51.501570" lon="-0.124062"><time>2026-11-03T12:00:29Z</time></trkpt>
+  </trkseg></trk>
+</gpx>
