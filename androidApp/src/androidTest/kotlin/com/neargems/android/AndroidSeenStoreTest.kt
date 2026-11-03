@@ -25,6 +25,19 @@ class AndroidSeenStoreTest {
     }
 
     @Test
+    fun theLastSeenTimeMovesForwardWhenAPlaceIsSeenAgain() {
+        val first = AndroidSeenStore(context, databaseName)
+        first.markSeen("osm:node:1", "Corner Cafe", "Café", 1_000L)
+        first.markSeen("osm:node:1", "Corner Cafe", "Café", 5_000L)
+        assertEquals(5_000L, first.lastSeenTimes()["osm:node:1"])
+        first.close()
+
+        val reopened = AndroidSeenStore(context, databaseName)
+        assertEquals(5_000L, reopened.lastSeenTimes()["osm:node:1"])
+        reopened.close()
+    }
+
+    @Test
     fun startsEmpty() {
         val store = AndroidSeenStore(context, databaseName)
         assertTrue(store.seenIds().isEmpty())

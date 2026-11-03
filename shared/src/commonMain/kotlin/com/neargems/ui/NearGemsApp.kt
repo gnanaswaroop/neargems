@@ -203,6 +203,8 @@ fun NearGemsApp(
         LocalSunPosition provides sun,
         LocalPhoneHeading provides phoneHeading,
         LocalAppVersion provides appVersion,
+        LocalPreviousSeen provides container.previousSeen,
+        LocalDateTimeLabel provides container.formatDateTime,
     ) {
         NearGemsContent(container, onStart, onWatchChanged, locationNeeded, locationDenied, onAllowLocation, onOpenSettings, onQuit)
     }
@@ -1376,6 +1378,13 @@ private fun DistanceDetails(ranked: RankedPoi, from: LatLon?, heading: Float?) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             sun?.let { SunReadout(it) }
+            LocalPreviousSeen.current[ranked.poi.id]?.let { lastSeen ->
+                Text(
+                    "Last seen ${LocalDateTimeLabel.current(lastSeen)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -1542,6 +1551,12 @@ private fun EmptyState(message: String?, actions: Actions) {
 
 /** The installed app's version, shown on the About page. */
 val LocalAppVersion = compositionLocalOf { "" }
+
+/** When each place was last seen before this session, keyed by place id. */
+private val LocalPreviousSeen = compositionLocalOf<Map<String, Long>> { emptyMap() }
+
+/** Shows a stored time on screen. */
+private val LocalDateTimeLabel = compositionLocalOf<(Long) -> String> { { millis: Long -> millis.toString() } }
 
 @Composable
 private fun SettingsPanel(

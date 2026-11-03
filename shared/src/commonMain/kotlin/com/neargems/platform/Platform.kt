@@ -88,14 +88,17 @@ interface KeyValueStore {
  */
 interface SeenStore {
     fun seenIds(): Set<String>
+    /** When each place was last seen, in epoch milliseconds, keyed by place id. */
+    fun lastSeenTimes(): Map<String, Long> = emptyMap()
     fun markSeen(id: String, name: String, category: String, atMillis: Long)
 }
 
 /** A [SeenStore] that forgets everything when the app closes. For tests, and platforms without a database. */
 class MemorySeenStore : SeenStore {
-    private val ids = mutableSetOf<String>()
-    override fun seenIds(): Set<String> = ids.toSet()
+    private val times = mutableMapOf<String, Long>()
+    override fun seenIds(): Set<String> = times.keys.toSet()
+    override fun lastSeenTimes(): Map<String, Long> = times.toMap()
     override fun markSeen(id: String, name: String, category: String, atMillis: Long) {
-        ids += id
+        times[id] = atMillis
     }
 }

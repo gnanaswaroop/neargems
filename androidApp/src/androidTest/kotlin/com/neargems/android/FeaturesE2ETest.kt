@@ -14,6 +14,7 @@ import com.neargems.app.PlatformServices
 import com.neargems.data.AppSettings
 import com.neargems.data.CachedSearch
 import com.neargems.data.SearchCache
+import com.neargems.platform.SeenStore
 import com.neargems.domain.Poi
 import com.neargems.domain.PoiCategory
 import com.neargems.support.Fixtures
@@ -166,6 +167,58 @@ class FeaturesE2ETest {
         rule.onNodeWithText("NearGems suggests interesting places close to you", substring = true)
             .performScrollTo()
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun theCardShowsWhenAPlaceWasLastSeen() {
+        val cafe = Poi(
+            id = "osm:node:1",
+            name = Fixtures.CAFE_NAME,
+            category = PoiCategory.CAFE,
+            location = Fixtures.CAFE,
+            snippet = "Café",
+            interest = 10.0,
+        )
+        val seen = object : SeenStore {
+            override fun seenIds(): Set<String> = setOf(cafe.id)
+            override fun lastSeenTimes(): Map<String, Long> = mapOf(cafe.id to 1_000L)
+            override fun markSeen(id: String, name: String, category: String, atMillis: Long) = Unit
+        }
+        val http = HttpClient(
+            MockEngine {
+                respond(content = "", status = HttpStatusCode.InternalServerError)
+            },
+        )
+        val store = MemoryStore()
+        SearchCache(store) { 0L }.save(
+            CachedSearch(
+                origin = Fixtures.CAFE,
+                categories = AppSettings().categories,
+                radiusMeters = AppSettings().radiusMeters,
+                keywords = emptyList(),
+                places = listOf(cafe),
+            ),
+        )
+        val container = DriveContainer(
+            PlatformServices(
+                http = http,
+                keyValues = store,
+                location = FixedLocation(Fixtures.CAFE, emptyFlow()),
+                headings = NoHeadings(),
+                narrator = SilentNarrator(),
+                maps = NoMaps(),
+                carConnected = flowOf(false),
+                language = "en",
+                clock = { 0L },
+                seen = seen,
+                formatDateTime = { "Mon 2 Nov 2026, 10:15" },
+            ),
+        )
+        showApp(container)
+
+        rule.waitUntil(TIMEOUT_MS) {
+            rule.onAllNodesWithText("Last seen Mon 2 Nov 2026, 10:15").fetchSemanticsNodes().isNotEmpty()
+        }
     }
 
     private companion object {

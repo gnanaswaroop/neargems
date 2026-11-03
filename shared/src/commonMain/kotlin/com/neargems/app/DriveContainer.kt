@@ -75,6 +75,8 @@ class PlatformServices(
     /** Gravity readings, for telling portrait from landscape and mounted from held. */
     val posture: PostureSource = NoPostureSource,
     val notifier: PlaceNotifier = NoPlaceNotifier,
+    /** How a time is shown on screen, e.g. "2 Nov 2026, 10:15". */
+    val formatDateTime: (Long) -> String = { it.toString() },
 )
 
 /**
@@ -106,13 +108,18 @@ class DriveContainer(platform: PlatformServices) {
 
     private val seenStore = platform.seen
     private val _seenIds = MutableStateFlow(seenStore.seenIds())
+    /** When each place was last seen before this session, so the card can say so. Not changed during the session. */
+    val previousSeen: Map<String, Long> = seenStore.lastSeenTimes()
+    /** Places already recorded as seen in this session, so each one's time is written once. */
+    private val recordedThisSession = mutableSetOf<String>()
+    val formatDateTime: (Long) -> String = platform.formatDateTime
 
     /** Ids of the places the user has seen. Anything else is New. */
     val seenIds: StateFlow<Set<String>> = _seenIds.asStateFlow()
 
     /** Marks a place as seen: shown and moved on from, opened, passed with Next, or read aloud. */
     fun markSeen(poi: Poi) {
-        if (poi.id in _seenIds.value) return
+        if (!recordedThisSession.add(poi.id)) return
         seenStore.markSeen(poi.id, poi.name, poi.category.label, clock())
         _seenIds.value = _seenIds.value + poi.id
     }
