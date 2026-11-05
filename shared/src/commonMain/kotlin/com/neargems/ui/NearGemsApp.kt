@@ -82,6 +82,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -132,7 +135,9 @@ import com.neargems.domain.Photo
 import com.neargems.domain.Poi
 import com.neargems.domain.PoiCategory
 import com.neargems.domain.RankedPoi
+import com.neargems.domain.CompassPoint
 import com.neargems.domain.bearingDegrees
+import com.neargems.domain.pointerAngle
 import com.neargems.domain.PhonePosture
 import com.neargems.domain.parseKeywords
 import com.neargems.domain.SUGGESTED_KEYWORDS
@@ -826,6 +831,11 @@ private fun SuggestionArea(
     }
 }
 
+/** The direction pointer's size, and how far in its ring and its N/E/S/W letters sit from the edge. */
+private val COMPASS_SIZE = 64.dp
+private val COMPASS_RING_INSET = 14.dp
+private val COMPASS_LABEL_INSET = 6.dp
+
 /** How small a card gets as it walks out of range, and how long that takes. Slow on purpose. */
 private const val DEPART_SCALE = 0.8f
 private const val DEPART_MS = 1800
@@ -1354,6 +1364,7 @@ private fun DistanceDetails(ranked: RankedPoi, from: LatLon?, heading: Float?) {
         if (bearing != null && heading != null) {
             CompassPointer(
                 relativeDegrees = (bearing - heading).toFloat(),
+                headingDegrees = heading,
                 sunRelativeDegrees = sun?.takeIf { it.isAboveHorizon }?.let { (it.azimuthDegrees - heading).toFloat() },
             )
         }
@@ -1393,24 +1404,47 @@ private fun SunReadout(sun: SunPosition) {
  * sun is up, a yellow dot on the ring shows where it is.
  */
 @Composable
-private fun CompassPointer(relativeDegrees: Float, sunRelativeDegrees: Float? = null) {
+private fun CompassPointer(relativeDegrees: Float, headingDegrees: Float?, sunRelativeDegrees: Float? = null) {
     val ring = MaterialTheme.colorScheme.outlineVariant
     val accent = MaterialTheme.colorScheme.primary
     val sunColour = Color(0xFFF2B300)
     val turn = ((relativeDegrees % 360) + 360) % 360
+    val textMeasurer = rememberTextMeasurer()
+    val labelStyle = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Bold)
+    val labelColour = MaterialTheme.colorScheme.onSurfaceVariant
     Canvas(
         modifier = Modifier
-            .size(52.dp)
+            .size(COMPASS_SIZE)
             .semantics {
                 contentDescription = "Direction pointer, place is ${turn.roundToInt()} degrees clockwise from your heading" +
+                    (headingDegrees?.let { ". North is ${pointerAngle(CompassPoint.NORTH, it).roundToInt()} degrees clockwise from your heading" }.orEmpty()) +
                     (sunRelativeDegrees?.let { ". Sun is ${(((it % 360) + 360) % 360).roundToInt()} degrees clockwise from your heading" }.orEmpty())
             },
     ) {
-        drawCircle(color = ring, radius = size.minDimension / 2 - 2f, style = Stroke(width = 3f))
+        // The ring sits inside the compass letters, which are drawn on the outside edge.
+        val ringRadius = size.minDimension / 2 - COMPASS_RING_INSET.toPx()
+        drawCircle(color = ring, radius = ringRadius, style = Stroke(width = 3f))
+        // N, E, S and W around the outside. They turn with the phone's heading, so north is always where the phone points north.
+        headingDegrees?.let { heading ->
+            CompassPoint.entries.forEach { point ->
+                val radians = Math.toRadians(pointerAngle(point, heading).toDouble() - 90)
+                val labelRadius = size.minDimension / 2 - COMPASS_LABEL_INSET.toPx()
+                val layout = textMeasurer.measure(point.letter, labelStyle)
+                val centre = Offset(
+                    x = center.x + (labelRadius * cos(radians)).toFloat(),
+                    y = center.y + (labelRadius * sin(radians)).toFloat(),
+                )
+                val colour = if (point == CompassPoint.NORTH) accent else labelColour
+                drawText(
+                    textLayoutResult = layout,
+                    color = colour,
+                    topLeft = Offset(centre.x - layout.size.width / 2f, centre.y - layout.size.height / 2f),
+                )
+            }
+        }
         sunRelativeDegrees?.let { sunAngle ->
             // The sun sits on the ring, at its angle measured clockwise from the top: a disc with rays.
             val radians = Math.toRadians(sunAngle.toDouble() - 90)
-            val ringRadius = size.minDimension / 2 - 2f
             val sunCentre = Offset(
                 x = center.x + (ringRadius * cos(radians)).toFloat(),
                 y = center.y + (ringRadius * sin(radians)).toFloat(),
