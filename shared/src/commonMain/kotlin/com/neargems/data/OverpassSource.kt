@@ -58,7 +58,9 @@ class OverpassSource(private val http: Http) {
         val builder = StringBuilder(text.length * 2)
         for (c in text) {
             when (c) {
-                '\\', '"' -> { builder.append('\\'); builder.append(c) }
+                // A backslash is dropped: escaped, it would become a regex escape such as \b, not a literal backslash.
+                '\\' -> Unit
+                '"' -> { builder.append('\\'); builder.append(c) }
                 '.', '^', '$', '*', '+', '?', '(', ')', '[', ']', '{', '}', '|' -> { builder.append('\\'); builder.append('\\'); builder.append(c) }
                 else -> builder.append(c)
             }
