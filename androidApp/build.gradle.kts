@@ -19,8 +19,8 @@ android {
         applicationId = "com.neargems.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 9
-        versionName = "1.1.6"
+        versionCode = 10
+        versionName = "1.1.7"
     }
 
     signingConfigs {

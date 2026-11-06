@@ -26,7 +26,15 @@ fun sunPosition(observer: LatLon, epochMillis: Long): SunPosition {
     val rightAscension = atan2(cos(obliquity) * sin(eclipticLongitude), cos(eclipticLongitude))
     val declination = asin(sin(obliquity) * sin(eclipticLongitude))
 
-    // Local hour angle: how far the sun is past due south, in radians.
+    return horizontalPosition(observer, days, rightAscension, declination)
+}
+
+/**
+ * Turns a right ascension and declination (radians) into an azimuth and elevation as seen from [observer] at
+ * [days] since 2000-01-01 12:00 UT. Shared by the sun and the moon.
+ */
+internal fun horizontalPosition(observer: LatLon, days: Double, rightAscension: Double, declination: Double): SunPosition {
+    // Local hour angle: how far the object is past due south, in radians.
     val siderealDegrees = 280.46061837 + 360.98564736629 * days + observer.lon
     val hourAngle = radians(siderealDegrees) - rightAscension
 
@@ -39,10 +47,10 @@ fun sunPosition(observer: LatLon, epochMillis: Long): SunPosition {
     return SunPosition(azimuthDegrees = azimuth, elevationDegrees = degrees(elevation))
 }
 
-private const val MILLIS_PER_DAY = 86_400_000.0
-private const val JULIAN_DAY_UNIX_EPOCH = 2440587.5
-private const val J2000 = 2451545.0
+internal const val MILLIS_PER_DAY = 86_400_000.0
+internal const val JULIAN_DAY_UNIX_EPOCH = 2440587.5
+internal const val J2000 = 2451545.0
 
-private fun radians(degrees: Double): Double = degrees * PI / 180
+internal fun radians(degrees: Double): Double = degrees * PI / 180
 
-private fun degrees(radians: Double): Double = radians * 180 / PI
+internal fun degrees(radians: Double): Double = radians * 180 / PI

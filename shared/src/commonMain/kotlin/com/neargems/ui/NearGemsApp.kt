@@ -82,6 +82,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -132,11 +135,15 @@ import com.neargems.domain.Photo
 import com.neargems.domain.Poi
 import com.neargems.domain.PoiCategory
 import com.neargems.domain.RankedPoi
+import com.neargems.domain.CompassPoint
 import com.neargems.domain.bearingDegrees
+import com.neargems.domain.pointerAngle
 import com.neargems.domain.PhonePosture
 import com.neargems.domain.parseKeywords
 import com.neargems.domain.SUGGESTED_KEYWORDS
+import com.neargems.domain.SkyBody
 import com.neargems.domain.SunPosition
+import com.neargems.domain.pointerSky
 import com.neargems.domain.compassPoint
 import com.neargems.domain.driveMinutes
 import com.neargems.domain.formatDistance
@@ -195,8 +202,9 @@ fun NearGemsApp(
 ) {
     val seenIds by container.seenIds.collectAsState()
     val sun by container.sun.collectAsState()
+    val moon by container.moon.collectAsState()
     val phoneHeading by container.headingDegrees.collectAsState()
-    CompositionLocalProvider(LocalSeenIds provides seenIds, LocalSunPosition provides sun, LocalPhoneHeading provides phoneHeading) {
+    CompositionLocalProvider(LocalSeenIds provides seenIds, LocalSunPosition provides sun, LocalMoonPosition provides moon, LocalPhoneHeading provides phoneHeading) {
         NearGemsContent(container, onStart, onWatchChanged, locationNeeded, locationDenied, onAllowLocation, onOpenSettings, onQuit)
     }
 }
@@ -206,6 +214,7 @@ private val LocalSeenIds = compositionLocalOf<Set<String>> { emptySet() }
 
 /** Where the sun is from the user's position, or null before the first fix. Read by the compass on each card. */
 private val LocalSunPosition = compositionLocalOf<SunPosition?> { null }
+private val LocalMoonPosition = compositionLocalOf<SunPosition?> { null }
 
 /** Which way the phone faces, from north, or null when unknown. Turns the mini map so that way is up. */
 private val LocalPhoneHeading = compositionLocalOf<Float?> { null }
@@ -826,6 +835,13 @@ private fun SuggestionArea(
     }
 }
 
+/** The direction pointer's size, and how far in its ring and its N/E/S/W letters sit from the edge. */
+private val COMPASS_SIZE = 64.dp
+private val COMPASS_RING_INSET = 14.dp
+private val COMPASS_LABEL_INSET = 6.dp
+/** How faint the sun marker is when the sun is below the horizon: still shown, but clearly not up. */
+private const val SUN_BELOW_HORIZON_ALPHA = 0.35f
+
 /** How small a card gets as it walks out of range, and how long that takes. Slow on purpose. */
 private const val DEPART_SCALE = 0.8f
 private const val DEPART_MS = 1800
@@ -1346,7 +1362,8 @@ private fun ActionBar(actions: Actions, canGoBack: Boolean) {
 @Composable
 private fun DistanceDetails(ranked: RankedPoi, from: LatLon?, heading: Float?) {
     val bearing = from?.let { bearingDegrees(it, ranked.poi.location) }
-    val sun = LocalSunPosition.current
+    // The sun while it is up, otherwise the moon, so there is always one object on the pointer.
+    val sky = pointerSky(LocalSunPosition.current, LocalMoonPosition.current)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -1354,7 +1371,11 @@ private fun DistanceDetails(ranked: RankedPoi, from: LatLon?, heading: Float?) {
         if (bearing != null && heading != null) {
             CompassPointer(
                 relativeDegrees = (bearing - heading).toFloat(),
-                sunRelativeDegrees = sun?.takeIf { it.isAboveHorizon }?.let { (it.azimuthDegrees - heading).toFloat() },
+                headingDegrees = heading,
+                // The sun or the moon is always on the pointer, at its bearing. Below the horizon it is drawn dimmed.
+                skyRelativeDegrees = sky?.let { (it.position.azimuthDegrees - heading).toFloat() },
+                skyBody = sky?.body ?: SkyBody.SUN,
+                skyUp = sky?.position?.isAboveHorizon ?: true,
             )
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -1368,7 +1389,7 @@ private fun DistanceDetails(ranked: RankedPoi, from: LatLon?, heading: Float?) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            sun?.let { SunReadout(it) }
+            sky?.let { SunReadout(it.body, it.position) }
         }
     }
 }
@@ -1378,11 +1399,12 @@ private fun DistanceDetails(ranked: RankedPoi, from: LatLon?, heading: Float?) {
  * Below the horizon it says so instead.
  */
 @Composable
-private fun SunReadout(sun: SunPosition) {
+private fun SunReadout(body: SkyBody, sun: SunPosition) {
+    val name = if (body == SkyBody.SUN) "Sun" else "Moon"
     val text = if (sun.isAboveHorizon) {
-        "Sun ${sun.azimuthDegrees.roundToInt() % 360}° ${compassPoint(sun.azimuthDegrees)} · ${sun.elevationDegrees.roundToInt()}° up"
+        "$name ${sun.azimuthDegrees.roundToInt() % 360}° ${compassPoint(sun.azimuthDegrees)} · ${sun.elevationDegrees.roundToInt()}° up"
     } else {
-        "Sun ${sun.azimuthDegrees.roundToInt() % 360}° ${compassPoint(sun.azimuthDegrees)} · below the horizon"
+        "$name ${sun.azimuthDegrees.roundToInt() % 360}° ${compassPoint(sun.azimuthDegrees)} · below the horizon"
     }
     Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
@@ -1393,42 +1415,85 @@ private fun SunReadout(sun: SunPosition) {
  * sun is up, a yellow dot on the ring shows where it is.
  */
 @Composable
-private fun CompassPointer(relativeDegrees: Float, sunRelativeDegrees: Float? = null) {
+private fun CompassPointer(
+    relativeDegrees: Float,
+    headingDegrees: Float?,
+    skyRelativeDegrees: Float? = null,
+    skyBody: SkyBody = SkyBody.SUN,
+    skyUp: Boolean = true,
+) {
     val ring = MaterialTheme.colorScheme.outlineVariant
     val accent = MaterialTheme.colorScheme.primary
+    val surface = MaterialTheme.colorScheme.surface
     val sunColour = Color(0xFFF2B300)
+    val moonColour = Color(0xFFD9DEE7)
     val turn = ((relativeDegrees % 360) + 360) % 360
+    val textMeasurer = rememberTextMeasurer()
+    val labelStyle = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Bold)
+    val labelColour = MaterialTheme.colorScheme.onSurfaceVariant
+    val bodyName = if (skyBody == SkyBody.SUN) "Sun" else "Moon"
     Canvas(
         modifier = Modifier
-            .size(52.dp)
+            .size(COMPASS_SIZE)
             .semantics {
                 contentDescription = "Direction pointer, place is ${turn.roundToInt()} degrees clockwise from your heading" +
-                    (sunRelativeDegrees?.let { ". Sun is ${(((it % 360) + 360) % 360).roundToInt()} degrees clockwise from your heading" }.orEmpty())
+                    (headingDegrees?.let { ". North is ${pointerAngle(CompassPoint.NORTH, it).roundToInt()} degrees clockwise from your heading" }.orEmpty()) +
+                    (skyRelativeDegrees?.let {
+                        ". $bodyName is ${(((it % 360) + 360) % 360).roundToInt()} degrees clockwise from your heading" +
+                            if (skyUp) "" else ", below the horizon"
+                    }.orEmpty())
             },
     ) {
-        drawCircle(color = ring, radius = size.minDimension / 2 - 2f, style = Stroke(width = 3f))
-        sunRelativeDegrees?.let { sunAngle ->
-            // The sun sits on the ring, at its angle measured clockwise from the top: a disc with rays.
-            val radians = Math.toRadians(sunAngle.toDouble() - 90)
-            val ringRadius = size.minDimension / 2 - 2f
-            val sunCentre = Offset(
+        // The ring sits inside the compass letters, which are drawn on the outside edge.
+        val ringRadius = size.minDimension / 2 - COMPASS_RING_INSET.toPx()
+        drawCircle(color = ring, radius = ringRadius, style = Stroke(width = 3f))
+        // N, E, S and W around the outside. They turn with the phone's heading, so north is always where the phone points north.
+        headingDegrees?.let { heading ->
+            CompassPoint.entries.forEach { point ->
+                val radians = Math.toRadians(pointerAngle(point, heading).toDouble() - 90)
+                val labelRadius = size.minDimension / 2 - COMPASS_LABEL_INSET.toPx()
+                val layout = textMeasurer.measure(point.letter, labelStyle)
+                val centre = Offset(
+                    x = center.x + (labelRadius * cos(radians)).toFloat(),
+                    y = center.y + (labelRadius * sin(radians)).toFloat(),
+                )
+                val colour = if (point == CompassPoint.NORTH) accent else labelColour
+                drawText(
+                    textLayoutResult = layout,
+                    color = colour,
+                    topLeft = Offset(centre.x - layout.size.width / 2f, centre.y - layout.size.height / 2f),
+                )
+            }
+        }
+        // The sun or the moon sits on the ring, at its angle measured clockwise from the top. Below the horizon it is dimmed.
+        skyRelativeDegrees?.let { skyAngle ->
+            val radians = Math.toRadians(skyAngle.toDouble() - 90)
+            val centre = Offset(
                 x = center.x + (ringRadius * cos(radians)).toFloat(),
                 y = center.y + (ringRadius * sin(radians)).toFloat(),
             )
             val disc = size.minDimension * 0.09f
-            for (ray in 0 until 8) {
-                val angle = Math.toRadians(ray * 45.0)
-                val inner = disc * 1.4f
-                val outer = disc * 2.1f
-                drawLine(
-                    color = sunColour,
-                    start = Offset(sunCentre.x + inner * cos(angle).toFloat(), sunCentre.y + inner * sin(angle).toFloat()),
-                    end = Offset(sunCentre.x + outer * cos(angle).toFloat(), sunCentre.y + outer * sin(angle).toFloat()),
-                    strokeWidth = 2f,
-                    cap = StrokeCap.Round,
-                )
+            val alpha = if (skyUp) 1f else SUN_BELOW_HORIZON_ALPHA
+            if (skyBody == SkyBody.SUN) {
+                // A disc with rays.
+                for (ray in 0 until 8) {
+                    val angle = Math.toRadians(ray * 45.0)
+                    val inner = disc * 1.4f
+                    val outer = disc * 2.1f
+                    drawLine(
+                        color = sunColour.copy(alpha = alpha),
+                        start = Offset(centre.x + inner * cos(angle).toFloat(), centre.y + inner * sin(angle).toFloat()),
+                        end = Offset(centre.x + outer * cos(angle).toFloat(), centre.y + outer * sin(angle).toFloat()),
+                        strokeWidth = 2f,
+                        cap = StrokeCap.Round,
+                    )
+                }
+                drawCircle(color = sunColour.copy(alpha = alpha), radius = disc, center = centre)
+            } else {
+                // A pale disc with a shadow cut out of it, so it reads as a crescent moon.
+                drawCircle(color = moonColour.copy(alpha = alpha), radius = disc * 1.3f, center = centre)
+                drawCircle(color = surface, radius = disc * 1.1f, center = centre + Offset(disc * 0.7f, -disc * 0.35f))
             }
-            drawCircle(color = sunColour, radius = disc, center = sunCentre)
         }
         val arrow = Path().apply {
             moveTo(size.width / 2, size.height * 0.14f)

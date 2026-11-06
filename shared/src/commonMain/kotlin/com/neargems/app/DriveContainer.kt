@@ -24,6 +24,7 @@ import com.neargems.domain.formatDistance
 import com.neargems.domain.PhonePosture
 import com.neargems.domain.SunPosition
 import com.neargems.domain.classifyPosture
+import com.neargems.domain.moonPosition
 import com.neargems.domain.sunPosition
 import com.neargems.domain.RankedPoi
 import com.neargems.platform.KeyValueStore
@@ -148,6 +149,10 @@ class DriveContainer(platform: PlatformServices) {
     /** Where the sun is, seen from the last known position. Updated every [SUN_TICK_MS]. Null until a fix arrives. */
     val sun: StateFlow<SunPosition?> = _sun.asStateFlow()
 
+    private val _moon = MutableStateFlow<SunPosition?>(null)
+    /** Where the moon is, from the latest fix. Shown on the direction pointer when the sun is down. */
+    val moon: StateFlow<SunPosition?> = _moon.asStateFlow()
+
     /** Set by the platform while its UI is on screen. */
     private val visible = MutableStateFlow(false)
 
@@ -269,6 +274,7 @@ class DriveContainer(platform: PlatformServices) {
             state.map { it.position }.filterNotNull().distinctUntilChanged().collectLatest { position ->
                 while (true) {
                     _sun.value = sunPosition(position, clock())
+                    _moon.value = moonPosition(position, clock())
                     delay(SUN_TICK_MS)
                 }
             }
