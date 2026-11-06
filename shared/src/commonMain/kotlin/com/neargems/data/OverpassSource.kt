@@ -42,7 +42,7 @@ class OverpassSource(private val http: Http) {
         // A long list in one request is slow and often times out on the public server, so it goes in batches.
         return namedBatches(keywords).flatMap { batch ->
             withRetries { endpoint ->
-                val pattern = batch.joinToString("|") { Regex.escape(it) }
+                val pattern = batch.joinToString("|") { escapeOverpassRegex(it) }
                 val query = """
                     [out:json][timeout:15];
                     nwr["name"~"($pattern)",i](around:$radiusMeters,${center.lat},${center.lon});
@@ -51,6 +51,19 @@ class OverpassSource(private val http: Http) {
                 parse(http.postForm(endpoint, "data=" + query.encodeURLParameter()), fallback = PoiCategory.LANDMARK)
             }
         }.distinctBy { it.id }
+    }
+
+    /** Escapes string for an Overpass API regex query to prevent query injection and syntax errors. */
+    private fun escapeOverpassRegex(text: String): String {
+        val builder = StringBuilder(text.length * 2)
+        for (c in text) {
+            when (c) {
+                '\\', '"' -> { builder.append('\\'); builder.append(c) }
+                '.', '^', '$', '*', '+', '?', '(', ')', '[', ']', '{', '}', '|' -> { builder.append('\\'); builder.append('\\'); builder.append(c) }
+                else -> builder.append(c)
+            }
+        }
+        return builder.toString()
     }
 
     /**
