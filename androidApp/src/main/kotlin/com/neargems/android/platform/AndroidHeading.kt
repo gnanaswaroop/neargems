@@ -1,11 +1,13 @@
 package com.neargems.android.platform
 
 import android.content.Context
+import android.hardware.GeomagneticField
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.view.WindowManager
+import com.neargems.domain.LatLon
 import com.neargems.platform.HeadingSource
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -47,6 +49,9 @@ class AndroidHeadingSource(context: Context) : HeadingSource {
         if (sensor != null) sensors.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI)
         awaitClose { sensors.unregisterListener(listener) }
     }
+
+    override fun magneticDeclination(at: LatLon, atMillis: Long): Float =
+        GeomagneticField(at.lat.toFloat(), at.lon.toFloat(), 0f, atMillis).declination
 
     /** The screen's rotation, one of the Surface.ROTATION_* values. */
     @Suppress("DEPRECATION") // defaultDisplay is still the way to read it from an application context on API 26+.
