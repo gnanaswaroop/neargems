@@ -42,7 +42,7 @@ object Fixtures {
         "Mo-Fr 07:00-18:00; Sa 08:00-19:00; Su 09:00-17:00; public holidays 10:00-16:00; " +
             "happy hour 16:00-18:00 with half price coffee and cake"
 
-    private val overpassBody = """{"elements":[
+    val overpassBody = """{"elements":[
         {"type":"node","id":1,"lat":51.5000,"lon":-0.1200,"tags":{"name":"Corner Cafe","amenity":"cafe",
             "opening_hours":"$LONG_HOURS"}},
         {"type":"node","id":2,"lat":51.5045,"lon":-0.1200,"tags":{"name":"Luigi","amenity":"restaurant",
