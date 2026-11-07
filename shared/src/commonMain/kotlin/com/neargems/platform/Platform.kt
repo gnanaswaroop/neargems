@@ -82,20 +82,37 @@ interface KeyValueStore {
     fun putString(key: String, value: String?)
 }
 
+/** A place the user has seen. [location] is null for places seen before their locations were kept. */
+data class SeenPlace(
+    val id: String,
+    val name: String,
+    val category: String,
+    val location: LatLon?,
+    val firstSeenMillis: Long,
+    val lastSeenMillis: Long,
+)
+
 /**
  * Remembers which places the user has seen, so each can be marked New or Seen. A place is in the
  * store once it has been seen. Android keeps this in a local SQLite database.
  */
 interface SeenStore {
     fun seenIds(): Set<String>
-    fun markSeen(id: String, name: String, category: String, atMillis: Long)
+    /** When each place was last seen, in epoch milliseconds, keyed by place id. */
+    fun lastSeenTimes(): Map<String, Long> = emptyMap()
+    /** Every place seen, most recently seen first. */
+    fun seenPlaces(): List<SeenPlace> = emptyList()
+    fun markSeen(id: String, name: String, category: String, atMillis: Long, location: LatLon? = null)
 }
 
 /** A [SeenStore] that forgets everything when the app closes. For tests, and platforms without a database. */
 class MemorySeenStore : SeenStore {
-    private val ids = mutableSetOf<String>()
-    override fun seenIds(): Set<String> = ids.toSet()
-    override fun markSeen(id: String, name: String, category: String, atMillis: Long) {
-        ids += id
+    private val places = mutableMapOf<String, SeenPlace>()
+    override fun seenIds(): Set<String> = places.keys.toSet()
+    override fun lastSeenTimes(): Map<String, Long> = places.mapValues { it.value.lastSeenMillis }
+    override fun seenPlaces(): List<SeenPlace> = places.values.sortedByDescending { it.lastSeenMillis }
+    override fun markSeen(id: String, name: String, category: String, atMillis: Long, location: LatLon?) {
+        val first = places[id]?.firstSeenMillis ?: atMillis
+        places[id] = SeenPlace(id, name, category, location ?: places[id]?.location, first, atMillis)
     }
 }

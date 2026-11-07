@@ -42,30 +42,9 @@ class OverpassSource(private val http: Http) {
         // A long list in one request is slow and often times out on the public server, so it goes in batches.
         return namedBatches(keywords).flatMap { batch ->
             withRetries { endpoint ->
-                val pattern = batch.joinToString("|") { escapeOverpassRegex(it) }
-                val query = """
-                    [out:json][timeout:15];
-                    nwr["name"~"($pattern)",i](around:$radiusMeters,${center.lat},${center.lon});
-                    out center 100;
-                """.trimIndent()
-                parse(http.postForm(endpoint, "data=" + query.encodeURLParameter()), fallback = PoiCategory.LANDMARK)
+                parse(http.postForm(endpoint, "data=" + namedQuery(center, radiusMeters, batch).encodeURLParameter()), fallback = PoiCategory.LANDMARK)
             }
         }.distinctBy { it.id }
-    }
-
-    /** Escapes string for an Overpass API regex query to prevent query injection and syntax errors. */
-    private fun escapeOverpassRegex(text: String): String {
-        val builder = StringBuilder(text.length * 2)
-        for (c in text) {
-            when (c) {
-                // A backslash is dropped: escaped, it would become a regex escape such as \b, not a literal backslash.
-                '\\' -> Unit
-                '"' -> { builder.append('\\'); builder.append(c) }
-                '.', '^', '$', '*', '+', '?', '(', ')', '[', ']', '{', '}', '|' -> { builder.append('\\'); builder.append('\\'); builder.append(c) }
-                else -> builder.append(c)
-            }
-        }
-        return builder.toString()
     }
 
     /**
@@ -100,6 +79,38 @@ class OverpassSource(private val http: Http) {
 
         /** Keywords grouped for separate requests, [NAMED_BATCH] at a time. */
         fun namedBatches(keywords: List<String>): List<List<String>> = keywords.chunked(NAMED_BATCH)
+
+        /**
+         * The Overpass query for named places. Keywords are placed inside a double-quoted string, so only letters,
+         * digits, spaces, hyphens and apostrophes are kept: anything else could break the query and make the server
+         * reject it, which the app would then retry for nothing.
+         */
+        fun namedQuery(center: LatLon, radiusMeters: Int, keywords: List<String>): String {
+            val pattern = keywords.map(::cleanKeyword).filter { it.isNotEmpty() }.joinToString("|")
+            return """
+                [out:json][timeout:15];
+                nwr["name"~"($pattern)",i](around:$radiusMeters,${center.lat},${center.lon});
+                out center 100;
+            """.trimIndent()
+        }
+
+        /**
+         * A keyword as it goes into the query's regex. Letters, digits, spaces, hyphens and apostrophes are kept.
+         * A regex character is escaped twice, once for the regex and once for the quoted string, so it matches
+         * only itself. Quotes and backslashes are dropped: they could end the string or change the regex.
+         */
+        fun cleanKeyword(keyword: String): String = buildString {
+            for (c in keyword) {
+                when {
+                    c.isLetterOrDigit() || c == ' ' || c == '-' || c == '\'' -> append(c)
+                    c in ".^\$*+?()[]{}|" -> {
+                        append('\\')
+                        append('\\')
+                        append(c)
+                    }
+                }
+            }
+        }.trim()
         private val json = Json { ignoreUnknownKeys = true }
 
         /** Turns an Overpass JSON response into places. */

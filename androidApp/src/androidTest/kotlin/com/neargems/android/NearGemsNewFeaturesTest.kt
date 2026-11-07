@@ -141,10 +141,17 @@ class NearGemsNewFeaturesTest {
         val container = container()
         showApp(container)
 
+        // The readout names the sun by day and the moon at night, depending on the clock.
+        var label = ""
         rule.waitUntil(TIMEOUT_MS) {
-            rule.onAllNodesWithText("Sun ", substring = true).fetchSemanticsNodes().isNotEmpty()
+            label = when {
+                rule.onAllNodesWithText("Sun ", substring = true).fetchSemanticsNodes().isNotEmpty() -> "Sun "
+                rule.onAllNodesWithText("Moon ", substring = true).fetchSemanticsNodes().isNotEmpty() -> "Moon "
+                else -> ""
+            }
+            label.isNotEmpty()
         }
-        rule.onAllNodesWithText("Sun ", substring = true)[0].performScrollTo().assertIsDisplayed()
+        rule.onAllNodesWithText(label, substring = true)[0].performScrollTo().assertIsDisplayed()
     }
 
     @Test

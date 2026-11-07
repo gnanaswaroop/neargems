@@ -3,6 +3,7 @@ package com.neargems.android
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import androidx.core.content.pm.PackageInfoCompat
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -50,6 +51,7 @@ class MainActivity : ComponentActivity() {
                 container = container,
                 onStart = ::onAppStarted,
                 onWatchChanged = ::onWatchChanged,
+                appVersion = versionLabel(),
                 locationNeeded = locationNeeded.value,
                 locationDenied = locationDenied.value,
                 onAllowLocation = ::requestLocation,
@@ -103,6 +105,12 @@ class MainActivity : ComponentActivity() {
         startActivity(
             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)),
         )
+    }
+
+    /** The installed version, for example "1.1.5 (8)", shown on the About page. */
+    private fun versionLabel(): String {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        return "${info.versionName} (${PackageInfoCompat.getLongVersionCode(info)})"
     }
 
     private fun hasLocationPermission(): Boolean =

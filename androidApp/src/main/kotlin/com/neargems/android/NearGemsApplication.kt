@@ -1,6 +1,8 @@
 package com.neargems.android
 
 import android.app.Application
+import java.text.DateFormat
+import java.util.Date
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
@@ -43,6 +45,9 @@ class NearGemsApplication : Application(), SingletonImageLoader.Factory {
                 language = Locale.getDefault().language.ifBlank { "en" },
                 clock = System::currentTimeMillis,
                 seen = AndroidSeenStore(this),
+                formatDateTime = { millis ->
+                    DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(millis))
+                },
                 posture = AndroidPostureSource(this),
                 notifier = AndroidPlaceNotifier(this),
             )

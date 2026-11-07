@@ -18,7 +18,7 @@ fun AndroidComposeTestRule<*, *>.saveScreenshot(name: String) {
     val bitmap = onRoot().captureToImage().asAndroidBitmap()
     val resolver = InstrumentationRegistry.getInstrumentation().targetContext.contentResolver
     val values = ContentValues().apply {
-        put(MediaStore.Images.Media.DISPLAY_NAME, "$name-${bitmap.width}x${bitmap.height}.png")
+        put(MediaStore.Images.Media.DISPLAY_NAME, "$name-${bitmap.width}x${bitmap.height}-${System.currentTimeMillis()}.png")
         put(MediaStore.Images.Media.MIME_TYPE, "image/png")
         put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/NearGems")
     }

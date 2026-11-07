@@ -25,6 +25,42 @@ class AndroidSeenStoreTest {
     }
 
     @Test
+    fun theLastSeenTimeMovesForwardWhenAPlaceIsSeenAgain() {
+        val first = AndroidSeenStore(context, databaseName)
+        first.markSeen("osm:node:1", "Corner Cafe", "Café", 1_000L)
+        first.markSeen("osm:node:1", "Corner Cafe", "Café", 5_000L)
+        assertEquals(5_000L, first.lastSeenTimes()["osm:node:1"])
+        first.close()
+
+        val reopened = AndroidSeenStore(context, databaseName)
+        assertEquals(5_000L, reopened.lastSeenTimes()["osm:node:1"])
+        reopened.close()
+    }
+
+    @Test
+    fun aVersionOneDatabaseIsUpgradedKeepingItsPlacesWithTheirFirstSeenTime() {
+        // A database as version 1 wrote it: no last_seen column, one place already seen.
+        val old = context.openOrCreateDatabase(databaseName, android.content.Context.MODE_PRIVATE, null)
+        old.execSQL(
+            "CREATE TABLE seen_places (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, " +
+                "category TEXT NOT NULL, first_seen INTEGER NOT NULL)",
+        )
+        old.execSQL("INSERT INTO seen_places VALUES ('osm:node:1', 'Corner Cafe', 'Café', 1000)")
+        old.version = 1
+        old.close()
+
+        // Opening it with the current store upgrades it to version 2.
+        val upgraded = AndroidSeenStore(context, databaseName)
+        assertTrue(upgraded.seenIds().contains("osm:node:1"))
+        assertEquals(1_000L, upgraded.lastSeenTimes()["osm:node:1"])
+
+        // A place seen after the upgrade gets its own last-seen time.
+        upgraded.markSeen("osm:node:1", "Corner Cafe", "Café", 9_000L)
+        assertEquals(9_000L, upgraded.lastSeenTimes()["osm:node:1"])
+        upgraded.close()
+    }
+
+    @Test
     fun startsEmpty() {
         val store = AndroidSeenStore(context, databaseName)
         assertTrue(store.seenIds().isEmpty())
@@ -58,5 +94,31 @@ class AndroidSeenStoreTest {
             }
         assertEquals(1_000L, firstSeen)
         store.close()
+    }
+
+    @Test
+    fun aVersionTwoDatabaseIsUpgradedKeepingItsPlacesWithoutALocationUntilTheyAreSeenAgain() {
+        // A database as version 2 wrote it: last_seen but no location.
+        val old = context.openOrCreateDatabase(databaseName, android.content.Context.MODE_PRIVATE, null)
+        old.execSQL(
+            "CREATE TABLE seen_places (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, " +
+                "category TEXT NOT NULL, first_seen INTEGER NOT NULL, last_seen INTEGER NOT NULL)",
+        )
+        old.execSQL("INSERT INTO seen_places VALUES ('osm:node:1', 'Corner Cafe', 'Café', 1000, 4000)")
+        old.version = 2
+        old.close()
+
+        val upgraded = AndroidSeenStore(context, databaseName)
+        val kept = upgraded.seenPlaces().single()
+        assertEquals("osm:node:1", kept.id)
+        assertEquals(4_000L, kept.lastSeenMillis)
+        assertEquals(null, kept.location)
+
+        // Seen again after the upgrade, the place gets its location.
+        upgraded.markSeen("osm:node:1", "Corner Cafe", "Café", 9_000L, com.neargems.domain.LatLon(51.5, -0.12))
+        val located = upgraded.seenPlaces().single()
+        assertEquals(com.neargems.domain.LatLon(51.5, -0.12), located.location)
+        assertEquals(1_000L, located.firstSeenMillis)
+        upgraded.close()
     }
 }

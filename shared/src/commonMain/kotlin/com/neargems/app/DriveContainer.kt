@@ -33,6 +33,7 @@ import com.neargems.platform.LocationSource
 import com.neargems.platform.MapOpener
 import com.neargems.platform.MemorySeenStore
 import com.neargems.platform.Narrator
+import com.neargems.platform.SeenPlace
 import com.neargems.platform.SeenStore
 import com.neargems.platform.NoPlaceNotifier
 import com.neargems.platform.PlaceNotifier
@@ -44,6 +45,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -76,6 +78,8 @@ class PlatformServices(
     /** Gravity readings, for telling portrait from landscape and mounted from held. */
     val posture: PostureSource = NoPostureSource,
     val notifier: PlaceNotifier = NoPlaceNotifier,
+    /** How a time is shown on screen, e.g. "2 Nov 2026, 10:15". */
+    val formatDateTime: (Long) -> String = { it.toString() },
 )
 
 /**
@@ -107,15 +111,25 @@ class DriveContainer(platform: PlatformServices) {
 
     private val seenStore = platform.seen
     private val _seenIds = MutableStateFlow(seenStore.seenIds())
+    /** When each place was last seen before this session, so the card can say so. Not changed during the session. */
+    val previousSeen: Map<String, Long> = seenStore.lastSeenTimes()
+    /** Places already recorded as seen in this session, so each one's time is written once. */
+    private val recordedThisSession = mutableSetOf<String>()
+    val formatDateTime: (Long) -> String = platform.formatDateTime
 
     /** Ids of the places the user has seen. Anything else is New. */
     val seenIds: StateFlow<Set<String>> = _seenIds.asStateFlow()
 
+    private val _seenPlaces = MutableStateFlow(seenStore.seenPlaces())
+    /** Every place the user has seen, most recent first, for the places list in Settings. */
+    val seenPlaces: StateFlow<List<SeenPlace>> = _seenPlaces.asStateFlow()
+
     /** Marks a place as seen: shown and moved on from, opened, passed with Next, or read aloud. */
     fun markSeen(poi: Poi) {
-        if (poi.id in _seenIds.value) return
-        seenStore.markSeen(poi.id, poi.name, poi.category.label, clock())
+        if (!recordedThisSession.add(poi.id)) return
+        seenStore.markSeen(poi.id, poi.name, poi.category.label, clock(), poi.location)
         _seenIds.value = _seenIds.value + poi.id
+        _seenPlaces.value = seenStore.seenPlaces()
     }
 
     val repository = PoiRepository(
@@ -300,7 +314,15 @@ class DriveContainer(platform: PlatformServices) {
 
     /** Searches again from scratch, for a pull-down, so the searching state stays up while the new results load. */
     fun pullToRefresh() {
-        scope.launch { repository.refresh(announce = shouldAnnounce(), force = true) }
+        searchAgain()
+    }
+
+    /** The search in flight, if any. A new search replaces it, so a slow search never holds up the one asked for now. */
+    private var searchJob: Job? = null
+
+    private fun searchAgain() {
+        searchJob?.cancel()
+        searchJob = scope.launch { repository.refresh(announce = shouldAnnounce(), force = true) }
     }
 
     fun next() {
@@ -372,7 +394,7 @@ class DriveContainer(platform: PlatformServices) {
             val criteriaChanged = before.categories != after.categories ||
                 before.keywords != after.keywords ||
                 before.radiusMeters != after.radiusMeters
-            if (criteriaChanged) repository.refresh(announce = shouldAnnounce(), force = true) else refreshAsync()
+            if (criteriaChanged) searchAgain() else refreshAsync()
         }
     }
 
