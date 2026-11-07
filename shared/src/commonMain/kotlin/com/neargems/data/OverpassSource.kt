@@ -94,8 +94,23 @@ class OverpassSource(private val http: Http) {
             """.trimIndent()
         }
 
-        fun cleanKeyword(keyword: String): String =
-            keyword.filter { it.isLetterOrDigit() || it == ' ' || it == '-' || it == '\'' }.trim()
+        /**
+         * A keyword as it goes into the query's regex. Letters, digits, spaces, hyphens and apostrophes are kept.
+         * A regex character is escaped twice, once for the regex and once for the quoted string, so it matches
+         * only itself. Quotes and backslashes are dropped: they could end the string or change the regex.
+         */
+        fun cleanKeyword(keyword: String): String = buildString {
+            for (c in keyword) {
+                when {
+                    c.isLetterOrDigit() || c == ' ' || c == '-' || c == '\'' -> append(c)
+                    c in ".^\$*+?()[]{}|" -> {
+                        append('\\')
+                        append('\\')
+                        append(c)
+                    }
+                }
+            }
+        }.trim()
         private val json = Json { ignoreUnknownKeys = true }
 
         /** Turns an Overpass JSON response into places. */

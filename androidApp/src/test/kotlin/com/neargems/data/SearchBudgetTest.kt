@@ -58,7 +58,9 @@ class SearchBudgetTest {
     fun keywordsAreCleanedSoTheQueryStaysValid() {
         val query = OverpassSource.namedQuery(center, 1000, listOf("st. \"james\"", "(x)", "pub-crawl"))
 
-        assertTrue(query, query.contains("""nwr["name"~"(st james|x|pub-crawl)",i]"""))
-        assertEquals(false, query.contains("\\"))
+        // Regex characters are escaped (dot and parentheses); quotes are dropped, so the string stays closed.
+        assertTrue(query, query.contains("""nwr["name"~"(st\\. james|\\(x\\)|pub-crawl)",i]"""))
+        // Four quotes: the two around "name" and the two around the pattern. A stray quote would add to them.
+        assertEquals(4, query.count { it == '"' })
     }
 }
