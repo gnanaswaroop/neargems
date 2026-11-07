@@ -900,9 +900,9 @@ private fun SuggestionArea(
 }
 
 /** The direction pointer's size, and how far in its ring and its N/E/S/W letters sit from the edge. */
-private val COMPASS_SIZE = 54.dp
-private val COMPASS_RING_INSET = 12.dp
-private val COMPASS_LABEL_INSET = 5.dp
+private val COMPASS_SIZE = 76.dp
+private val COMPASS_RING_INSET = 8.dp
+private val COMPASS_LABEL_INSET = 1.dp
 /** How faint the sun marker is when the sun is below the horizon: still shown, but clearly not up. */
 private const val SUN_BELOW_HORIZON_ALPHA = 0.35f
 
@@ -1591,7 +1591,7 @@ private fun CompassPointer(
             }
         }
         // The arrow is drawn inside the ring, so its tip never reaches past the circle.
-        val arrowRadius = ringRadius * 0.85f
+        val arrowRadius = ringRadius * 0.7f
         val arrow = Path().apply {
             moveTo(center.x, center.y - arrowRadius)
             lineTo(center.x + arrowRadius * 0.62f, center.y + arrowRadius * 0.72f)
