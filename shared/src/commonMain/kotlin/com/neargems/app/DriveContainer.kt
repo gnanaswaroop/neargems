@@ -16,6 +16,7 @@ import com.neargems.data.WikipediaSource
 import com.neargems.domain.LatLon
 import com.neargems.domain.bearingDegrees
 import com.neargems.domain.distanceMeters
+import com.neargems.domain.normalizeDegrees
 import com.neargems.domain.Poi
 import com.neargems.domain.Holding
 import com.neargems.domain.bearingDegrees
@@ -172,6 +173,9 @@ class DriveContainer(platform: PlatformServices) {
 
     private val heading = MutableStateFlow<Float?>(null)
 
+    /** Magnetic declination at the last fix, in degrees east. Zero until a fix arrives. */
+    private val declination = MutableStateFlow(0f)
+
     /** Which way the car is travelling, from successive GPS fixes, or null until it has moved. */
     private val travel = MutableStateFlow<Float?>(null)
 
@@ -191,7 +195,9 @@ class DriveContainer(platform: PlatformServices) {
      * The direction the pointer is measured from. When the phone is mounted, it is the direction of
      * travel, because the phone's own direction is unreliable there; when it is held, the phone's heading.
      */
-    val headingDegrees: StateFlow<Float?> = combine(heading, travel, posture) { phone, moving, now ->
+    val headingDegrees: StateFlow<Float?> = combine(heading, travel, posture, declination) { magnetic, moving, now, offset ->
+        // The phone's compass reads magnetic north, so the declination turns it into true north. GPS travel is already true.
+        val phone = magnetic?.let { normalizeDegrees(it + offset) }
         if (now.holding == Holding.MOUNTED && moving != null) moving else phone
     }.stateIn(scope, SharingStarted.Eagerly, null)
 
@@ -282,6 +288,12 @@ class DriveContainer(platform: PlatformServices) {
                         }
                     }
                 }
+        }
+        // The magnetic declination changes slowly, so it is worked out once for each new fix.
+        scope.launch {
+            state.map { it.position }.filterNotNull().distinctUntilChanged().collect { fix ->
+                declination.value = platform.headings.magneticDeclination(fix, clock())
+            }
         }
         // The sun is worked out from the latest fix, and again every tick while the fix stays put.
         scope.launch {

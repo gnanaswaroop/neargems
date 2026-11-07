@@ -21,6 +21,12 @@ interface LocationSource {
  */
 interface HeadingSource {
     fun headings(): Flow<Float>
+
+    /**
+     * Magnetic declination at [at] and [atMillis]: how far magnetic north lies east of true north, in degrees.
+     * Adding it to a magnetic heading gives a true one. Zero where the platform cannot tell.
+     */
+    fun magneticDeclination(at: LatLon, atMillis: Long): Float = 0f
 }
 
 /** A voice the device can read with. [id] is what the app stores; [label] is shown to the user. */
