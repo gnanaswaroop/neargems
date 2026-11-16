@@ -1,0 +1,107 @@
+name: Auto release
+
+# Cuts a GitHub release whenever the app version in androidApp/build.gradle.kts is bumped on main.
+# The release is tagged v<versionName> and carries the signed Play bundle (.aab).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "androidApp/build.gradle.kts"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version
+        id: version
+        run: |
+          NAME=$(grep -E '^\s*versionName\s*=' androidApp/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          CODE=$(grep -E '^\s*versionCode\s*=' androidApp/build.gradle.kts | head -1 | sed -E 's/[^0-9]*([0-9]+).*/\1/')
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "tag=v$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if this version is already released
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git rev-parse "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1 \
+             || gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "${{ steps.version.outputs.tag }} already exists, nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK
+        if: steps.check.outputs.skip == 'false'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        if: steps.check.outputs.skip == 'false'
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Restore upload signing key
+        if: steps.check.outputs.skip == 'false'
+        env:
+          KEYSTORE_B64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.UPLOAD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::UPLOAD_KEYSTORE_BASE64 secret is not set"
+            exit 1
+          fi
+          mkdir -p "$HOME/.neargems"
+          echo "$KEYSTORE_B64" | base64 --decode > "$HOME/.neargems/neargems-upload.jks"
+          cat > "$HOME/.neargems/upload-signing.properties" <<PROPS
+          storeFile=$HOME/.neargems/neargems-upload.jks
+          storePassword=$STORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          PROPS
+
+      - name: Run unit tests
+        if: steps.check.outputs.skip == 'false'
+        run: ./gradlew --no-daemon :androidApp:testDebugUnitTest
+
+      - name: Build release bundle
+        if: steps.check.outputs.skip == 'false'
+        run: ./gradlew --no-daemon :androidApp:bundleRelease
+
+      - name: Create tag and GitHub release
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+        run: |
+          AAB="androidApp/build/outputs/bundle/release/androidApp-release.aab"
+          cp "$AAB" "neargems-${VERSION_NAME}-${VERSION_CODE}.aab"
+          gh release create "$TAG" "neargems-${VERSION_NAME}-${VERSION_CODE}.aab" \
+            --target "$GITHUB_SHA" \
+            --title "Near Gems $VERSION_NAME" \
+            --generate-notes
+
+      - name: Clean up signing key
+        if: always()
+        run: rm -rf "$HOME/.neargems"
